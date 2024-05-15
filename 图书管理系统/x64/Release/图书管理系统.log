@@ -1,0 +1,10 @@
+﻿  Main.cpp
+E:\图书管理系统\Vision 1.0\图书管理系统（发布版）\图书管理系统(开发板）\Main.cpp(44,10): warning C4267: “初始化”: 从“size_t”转换到“int”，可能丢失数据
+E:\图书管理系统\Vision 1.0\图书管理系统（发布版）\图书管理系统(开发板）\Main.cpp(334,6): warning C4101: “ch”: 未引用的局部变量
+  正在生成代码
+E:\图书管理系统\Vision 1.0\图书管理系统（发布版）\图书管理系统(开发板）\Main.cpp(72): warning C4715: “trey”: 不是所有的控件路径都返回值
+  233 of 235 functions (99.1%) were compiled, the rest were copied from previous compilation.
+    6 functions were new in current compilation
+    0 functions had inline decision re-evaluated but remain unchanged
+  已完成代码的生成
+  图书管理系统.vcxproj -> E:\图书管理系统\Vision 1.0\图书管理系统（发布版）\图书管理系统(开发板）\x64\Release\图书管理系统.exe

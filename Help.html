@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>帮助文档</title>
+<style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+        }
+        h1 {
+            font-size: 24px;
+        }
+        h2 {
+            font-size: 20px;
+        }
+        h3 {
+            font-size: 16px;
+        }
+        p {
+            margin-bottom: 10px;
+        }
+        pre {
+            background-color: #f5f5f5;
+            padding: 10px;
+            border-radius: 3px;
+            white-space: pre-wrap;
+        }
+        #searchInput {
+            width: 100%;
+            padding: 5px;
+            margin-bottom: 10px;
+        }
+        .section {
+            display: none;
+        }
+        .section.active {
+            display: block;
+        }
+        img {
+            max-width: 100%;
+            height: auto;
+        }
+    </style>
+</head>
+<body>
+    <h1>帮助文档</h1>
+    <p>欢迎来到我们的帮助文档！在这里，您可以找到关于我们产品的各种信息和解答。您还可以通过程序的“关于”-“发送反馈”给我们发送建议和BUG，方便我们改正。</p>
+    <h2>常见问题</h2>
+    <ul>
+        <li><a href="#question1">问题1：用Dev C++打开乱码？</a></li>
+        <li><a href="#question2">问题2：MinGW编译器编译失败？</a></li>
+        <li><a href="#question3">问题3：缺少dll，程序无法正常运行？</a></li>
+        <li><a href="#question4">问题4：我们的下一步计划？</a></li>
+    </ul>
+    <h3 id="question1">问题1：用Dev C++打开乱码？</h3>
+    <p>这是编码读取错误的情况，由于Dev C++已经太老了，建议您使用其他IDE打开。</p>
+    <h3 id="question2">问题2：MinGW编译器编译失败？</h3>
+    <p>由于使用的是MSVC，所以在某些地方会出现编译错误的情况，在相关代码旁边已给出注释更改。</p>
+    <h3 id="question3">问题3：缺少dll，程序无法正常运行？</h3>
+    <p>建议重新下载本程序，或通过以下链接下载对应dll以解决问题。</p>
+  <pre>
+1.VCRUNTIME140_1D.dll：https://wwl.lanzouo.com/iV7BD1yfp4oj，密码:41k9
+2.VCRUNTIME140D.dll：https://wwl.lanzouo.com/ixsJx1yfp4pa，密码:c372
+3.MSVCP140D.dll：https://wwl.lanzouo.com/iOOQW1yfp4ej，密码:1gnj
+4.ucrtbased.dll：https://wwl.lanzouo.com/iRSiH1yfp4ni，密码:8v99
+    </pre>
+    <h3 id="question4">问题4：我们的下一步计划？</h3>
+    <p>用数据库代替部分control文件记录图书信息；添加更多管理员操作、图书信息和用户个人信息。完成数据的加密工作；实现更新功能；完善帮助文档；将程序错误捕获并写入日志；未来，GUI与CMD版本的图书管理系统将共存。</p>
+</body>
+</html>
