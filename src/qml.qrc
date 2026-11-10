@@ -1,0 +1,21 @@
+<RCC>
+    <qresource prefix="/">
+        <file>qml/App.qml</file>
+        <file>qml/LoginWindow.qml</file>
+        <file>qml/MainWindow.qml</file>
+        <file>qml/components/StatCard.qml</file>
+        <file>qml/components/EmptyState.qml</file>
+        <file>qml/components/BookCard.qml</file>
+        <file>qml/pages/HomePage.qml</file>
+        <file>qml/pages/SearchPage.qml</file>
+        <file>qml/pages/BorrowPage.qml</file>
+        <file>qml/pages/ReturnPage.qml</file>
+        <file>qml/pages/MyBooksPage.qml</file>
+        <file>qml/pages/AdminPage.qml</file>
+        <file>qml/pages/AboutPage.qml</file>
+        <file>qml/pages/admin/BookAdminTab.qml</file>
+        <file>qml/pages/admin/UserAdminTab.qml</file>
+        <file>qml/pages/admin/DataTab.qml</file>
+        <file alias="resources/library.ico">../library.ico</file>
+    </qresource>
+</RCC>
