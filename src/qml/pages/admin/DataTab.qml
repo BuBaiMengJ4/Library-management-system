@@ -16,24 +16,32 @@ ColumnLayout {
 
         StatCard {
             Layout.fillWidth: true
-            title: "馆藏图书"
+            title: I18n.t("馆藏图书")
             value: String(LibraryService.stats.totalBooks || 0)
-            hint: "本"
+            hint: I18n.t("本")
             iconSource: FluentIcons.Library
         }
         StatCard {
             Layout.fillWidth: true
-            title: "借出图书"
+            title: I18n.t("借出图书")
             value: String(LibraryService.stats.borrowedBooks || 0)
-            hint: "本"
+            hint: I18n.t("本")
             iconSource: FluentIcons.ReadingList
             accent: "#C46A1B"
         }
         StatCard {
             Layout.fillWidth: true
-            title: "注册账户"
+            title: I18n.t("逾期未还")
+            value: String(LibraryService.stats.overdueBooks || 0)
+            hint: I18n.t("本")
+            iconSource: FluentIcons.Warning
+            accent: "#D83B3B"
+        }
+        StatCard {
+            Layout.fillWidth: true
+            title: I18n.t("注册账户")
             value: String(LibraryService.stats.totalUsers || 0)
-            hint: "含管理员"
+            hint: I18n.t("含管理员")
             iconSource: FluentIcons.People
             accent: "#7A5AF8"
         }
@@ -41,7 +49,7 @@ ColumnLayout {
 
     FluFrame {
         Layout.fillWidth: true
-        Layout.preferredHeight: 196
+        Layout.preferredHeight: 210
         radius: 10
         border.width: 1
         border.color: FluTheme.dividerColor
@@ -53,22 +61,22 @@ ColumnLayout {
             spacing: 8
 
             FluText {
-                text: "数据库文件"
+                text: I18n.t("数据库文件")
                 font: FluTextStyle.Title
             }
             FluText {
-                text: "全部图书、账户和借阅记录都保存在加密的 SQLite 数据库中，退出程序不会丢失。账户与图书字段使用 AES-256-GCM 独立加密。"
+                Layout.fillWidth: true
+                text: I18n.t("图书、账户、借阅历史和头像封面都保存在加密 SQLite 数据库中。账户与图书字段使用 AES-256-GCM 独立加密。")
                 font: FluTextStyle.Caption
                 textColor: FluTheme.fontSecondaryColor
-                Layout.fillWidth: true
                 wrapMode: Text.Wrap
             }
             FluText {
-                text: "主密钥由 Windows DPAPI 以当前用户为范围保护，保存在同目录的 library.key 中。"
+                Layout.fillWidth: true
+                text: I18n.t("密码只保存 PBKDF2-HMAC-SHA256 哈希，管理员无法查看原始密码；主密钥由 Windows DPAPI 保护。")
                 font: FluTextStyle.Caption
                 textColor: FluTheme.fontTertiaryColor
-                Layout.fillWidth: true
-                elide: Text.ElideRight
+                wrapMode: Text.Wrap
             }
 
             RowLayout {
@@ -84,16 +92,39 @@ ColumnLayout {
                 }
 
                 FluButton {
-                    text: "复制路径"
+                    text: I18n.t("复制路径")
                     onClicked: {
                         FluTools.clipText(LibraryService.databasePath)
-                        tab.toast("数据库路径已复制到剪贴板", true)
+                        tab.toast(I18n.t("数据库路径已复制到剪贴板"), true)
                     }
                 }
 
                 FluButton {
-                    text: "打开所在文件夹"
+                    text: I18n.t("打开所在文件夹")
                     onClicked: FluTools.showFileInFolder(LibraryService.databasePath)
+                }
+            }
+
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 12
+                FluText {
+                    text: I18n.f("借阅记录 {0} 条", [LibraryService.stats.totalLoans || 0])
+                    font: FluTextStyle.Caption
+                    textColor: FluTheme.fontSecondaryColor
+                }
+                FluText {
+                    text: I18n.f("黑名单用户 {0} 个", [LibraryService.stats.blacklistedUsers || 0])
+                    font: FluTextStyle.Caption
+                    textColor: FluTheme.fontSecondaryColor
+                }
+                FluText {
+                    text: I18n.f("锁定账户 {0} 个", [LibraryService.stats.lockedUsers || 0])
+                    font: FluTextStyle.Caption
+                    textColor: FluTheme.fontSecondaryColor
+                }
+                Item {
+                    Layout.fillWidth: true
                 }
             }
         }
@@ -129,21 +160,21 @@ ColumnLayout {
                 Layout.fillWidth: true
                 spacing: 4
                 FluText {
-                    text: "示例数据"
+                    text: I18n.t("示例数据")
                     font: FluTextStyle.Title
                 }
                 FluText {
-                    text: "载入 12 本中外经典图书，方便快速体验检索、借阅和归还流程。已存在的同名图书会被跳过。"
+                    Layout.fillWidth: true
+                    text: I18n.t("载入 12 本中外经典图书，包含分类和简介，方便体验检索、借阅、续借和归还流程。")
                     font: FluTextStyle.Caption
                     textColor: FluTheme.fontSecondaryColor
-                    Layout.fillWidth: true
                     wrapMode: Text.Wrap
                 }
             }
 
             FluFilledButton {
                 Layout.preferredWidth: 150
-                text: "载入示例图书"
+                text: I18n.t("载入示例图书")
                 onClicked: tab.seed()
             }
         }
@@ -172,14 +203,15 @@ ColumnLayout {
                 Layout.fillWidth: true
                 spacing: 1
                 FluText {
-                    text: "旧版数据迁移完成"
+                    text: I18n.t("旧版数据迁移完成")
                     font: FluTextStyle.BodyStrong
                 }
                 FluText {
-                    text: LibraryService.migrationNote + "。原始 control 文件没有被修改。"
+                    Layout.fillWidth: true
+                    text: LibraryService.migrationNote + "。"
+                          + I18n.t("原始 control 文件没有被修改。")
                     font: FluTextStyle.Caption
                     textColor: FluTheme.fontSecondaryColor
-                    Layout.fillWidth: true
                     elide: Text.ElideRight
                 }
             }
@@ -193,11 +225,11 @@ ColumnLayout {
     function seed() {
         var count = LibraryService.seedSampleBooks()
         if (count > 0) {
-            toast("已载入 " + count + " 本示例图书", true)
+            toast(I18n.f("已载入 {0} 本示例图书", [count]), true)
         } else if (LibraryService.lastError !== "") {
             toast(LibraryService.lastError, false)
         } else {
-            toast("示例图书已存在，无需重复载入", true)
+            toast(I18n.t("示例图书已存在，无需重复载入"), true)
         }
     }
 
@@ -209,7 +241,7 @@ ColumnLayout {
         if (success) {
             win.showSuccess(message)
         } else {
-            win.showError(message)
+            win.showError(I18n.t(message))
         }
     }
 }

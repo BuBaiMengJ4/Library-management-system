@@ -12,7 +12,7 @@ ColumnLayout {
 
     FluFrame {
         Layout.fillWidth: true
-        Layout.preferredHeight: 168
+        Layout.preferredHeight: 174
         radius: 10
         border.width: 1
         border.color: FluTheme.dividerColor
@@ -21,14 +21,14 @@ ColumnLayout {
         ColumnLayout {
             anchors.fill: parent
             anchors.margins: 18
-            spacing: 6
+            spacing: 7
 
             FluText {
-                text: "创建读者账户"
+                text: I18n.t("创建读者账户")
                 font: FluTextStyle.Title
             }
             FluText {
-                text: "新账户没有管理员权限。密码会保存在本地数据文件中，请勿使用重要密码。"
+                text: I18n.t("新账户首次登录必须修改密码。密码需包含大写、小写、数字和特殊符号，至少 8 位。")
                 font: FluTextStyle.Caption
                 textColor: FluTheme.fontSecondaryColor
                 Layout.fillWidth: true
@@ -43,21 +43,18 @@ ColumnLayout {
                 FluTextBox {
                     id: usernameField
                     Layout.fillWidth: true
-                    placeholderText: "用户名（1-20 个字符）"
+                    placeholderText: I18n.t("用户名（1-20 个字符）")
                     iconSource: FluentIcons.Contact
                     onCommit: tab.addUser()
                 }
-                FluTextBox {
+                FluPasswordBox {
                     id: passwordField
-                    Layout.preferredWidth: 260
-                    placeholderText: "初始密码（4-32 个字符）"
-                    echoMode: TextInput.Password
-                    cleanEnabled: false
-                    onCommit: tab.addUser()
+                    Layout.preferredWidth: 280
+                    placeholderText: I18n.t("初始密码（至少 8 位）")
                 }
                 FluFilledButton {
                     Layout.preferredWidth: 100
-                    text: "创建账户"
+                    text: I18n.t("创建账户")
                     onClicked: tab.addUser()
                 }
             }
@@ -71,25 +68,22 @@ ColumnLayout {
     RowLayout {
         Layout.fillWidth: true
         spacing: 10
-
         FluText {
-            text: "账户列表"
+            text: I18n.t("账户列表")
             font: FluTextStyle.Title
         }
         FluText {
-            text: "共 " + LibraryService.users.length + " 个"
+            text: I18n.f("共 {0} 个", [LibraryService.users.length])
             font: FluTextStyle.Caption
             textColor: FluTheme.fontSecondaryColor
             Layout.alignment: Qt.AlignBottom
             Layout.bottomMargin: 6
         }
-
         Item {
             Layout.fillWidth: true
         }
-
         FluText {
-            text: "管理员账户不可删除，也不能删除仍有借阅的账户"
+            text: I18n.t("管理员不能查看用户密码，只能重置")
             font: FluTextStyle.Caption
             textColor: FluTheme.fontTertiaryColor
             Layout.alignment: Qt.AlignVCenter
@@ -102,6 +96,7 @@ ColumnLayout {
 
         ListView {
             id: userList
+            property var owner: tab
             anchors.fill: parent
             clip: true
             spacing: 8
@@ -110,7 +105,7 @@ ColumnLayout {
 
             delegate: FluFrame {
                 width: ListView.view.width
-                height: 68
+                height: 78
                 radius: 8
                 border.width: 1
                 border.color: FluTheme.dividerColor
@@ -119,85 +114,129 @@ ColumnLayout {
                 RowLayout {
                     anchors.fill: parent
                     anchors.leftMargin: 14
-                    anchors.rightMargin: 14
+                    anchors.rightMargin: 12
                     spacing: 12
 
                     Rectangle {
-                        Layout.preferredWidth: 38
-                        Layout.preferredHeight: 38
-                        radius: 19
+                        Layout.preferredWidth: 40
+                        Layout.preferredHeight: 40
+                        radius: 20
+                        clip: true
                         color: modelData.admin
                                ? FluTools.withOpacity(FluTheme.primaryColor, 0.16)
-                               : (FluTheme.dark ? Qt.rgba(1, 1, 1, 0.08) : Qt.rgba(0, 0, 0, 0.06))
+                               : (FluTheme.dark ? Qt.rgba(1, 1, 1, 0.08)
+                                                : Qt.rgba(0, 0, 0, 0.06))
+
+                        Image {
+                            id: userAvatar
+                            anchors.fill: parent
+                            fillMode: Image.PreserveAspectCrop
+                            source: modelData.hasAvatar
+                                    ? "image://library/avatar/" + modelData.username
+                                      + "?v=" + LibraryService.imageRevision
+                                    : ""
+                            visible: status === Image.Ready
+                        }
+
                         FluText {
                             anchors.centerIn: parent
-                            text: modelData.username.length > 0
-                                  ? modelData.username.charAt(0).toUpperCase()
+                            visible: userAvatar.status !== Image.Ready
+                            text: modelData.displayName.length > 0
+                                  ? modelData.displayName.charAt(0).toUpperCase()
                                   : "?"
                             font: FluTextStyle.BodyStrong
-                            textColor: modelData.admin ? FluTheme.primaryColor : FluTheme.fontPrimaryColor
+                            textColor: modelData.admin
+                                       ? FluTheme.primaryColor : FluTheme.fontPrimaryColor
                         }
                     }
 
                     ColumnLayout {
                         Layout.fillWidth: true
-                        spacing: 1
+                        spacing: 2
                         RowLayout {
                             spacing: 6
                             FluText {
-                                text: modelData.username
+                                text: modelData.displayName
                                 font: FluTextStyle.BodyStrong
+                            }
+                            FluText {
+                                text: "(" + modelData.username + ")"
+                                font: FluTextStyle.Caption
+                                textColor: FluTheme.fontTertiaryColor
                             }
                             Rectangle {
                                 visible: modelData.isCurrent
-                                width: 42
+                                width: 40
                                 height: 18
                                 radius: 3
                                 color: FluTools.withOpacity(FluTheme.primaryColor, 0.12)
                                 FluText {
                                     anchors.centerIn: parent
-                                    text: "当前"
+                                    text: I18n.t("当前")
                                     font: FluTextStyle.Caption
                                     textColor: FluTheme.primaryColor
                                 }
                             }
                         }
-                        FluText {
-                            text: modelData.role + " · 已借 " + modelData.borrowCount + " 本"
-                            font: FluTextStyle.Caption
-                            textColor: FluTheme.fontSecondaryColor
+                        RowLayout {
+                            spacing: 8
+                            FluText {
+                                text: modelData.admin ? I18n.t("管理员") : I18n.t("读者")
+                                font: FluTextStyle.Caption
+                                textColor: FluTheme.fontSecondaryColor
+                            }
+                            FluText {
+                                text: I18n.f("已借 {0} 本", [modelData.borrowCount])
+                                font: FluTextStyle.Caption
+                                textColor: FluTheme.fontSecondaryColor
+                            }
+                            FluText {
+                                visible: modelData.blacklisted
+                                text: I18n.t("黑名单")
+                                font: FluTextStyle.Caption
+                                textColor: "#D83B3B"
+                            }
+                            FluText {
+                                visible: modelData.locked || modelData.temporaryLocked
+                                text: modelData.locked
+                                      ? I18n.t("已锁定")
+                                      : I18n.f("临时锁定 {0} 分钟",
+                                               [modelData.lockMinutes])
+                                font: FluTextStyle.Caption
+                                textColor: "#C46A1B"
+                            }
+                            FluText {
+                                visible: modelData.mustChangePassword
+                                text: I18n.t("待修改密码")
+                                font: FluTextStyle.Caption
+                                textColor: "#C46A1B"
+                            }
                         }
                     }
 
-                    ColumnLayout {
-                        Layout.preferredWidth: 180
-                        spacing: 1
-                        FluText {
-                            text: "密码"
-                            font: FluTextStyle.Caption
-                            textColor: FluTheme.fontTertiaryColor
-                        }
-                        FluText {
-                            text: modelData.password
-                            font: FluTextStyle.Body
-                            Layout.fillWidth: true
-                            elide: Text.ElideRight
+                    FluTextButton {
+                        text: modelData.locked ? I18n.t("解锁") : I18n.t("锁定")
+                        enabled: !modelData.admin && !modelData.isCurrent
+                        onClicked: {
+                            var error = LibraryService.setUserLocked(modelData.username,
+                                                                     !modelData.locked)
+                            if (error === "") {
+                                ListView.view.owner.toast(I18n.t(modelData.locked
+                                                                  ? "已解锁账户" : "已锁定账户"),
+                                                          true)
+                            } else {
+                                ListView.view.owner.toast(error, false)
+                            }
                         }
                     }
-
-                    FluIconButton {
-                        iconSource: FluentIcons.Lock
-                        iconSize: 14
-                        contentDescription: "重置密码"
-                        onClicked: tab.openReset(modelData.username)
+                    FluTextButton {
+                        text: I18n.t("重置密码")
+                        onClicked: ListView.view.owner.openReset(modelData.username)
                     }
-
-                    FluIconButton {
-                        iconSource: FluentIcons.Delete
-                        iconSize: 14
-                        contentDescription: "删除账户"
-                        disabled: modelData.admin || modelData.isCurrent
-                        onClicked: tab.confirmRemove(modelData.username)
+                    FluTextButton {
+                        text: I18n.t("删除")
+                        enabled: !modelData.admin && !modelData.isCurrent
+                        onClicked: ListView.view.owner.confirmRemove(modelData.username)
                     }
                 }
             }
@@ -209,25 +248,25 @@ ColumnLayout {
         property string targetUser: ""
         property string newPassword: ""
 
-        title: "重置密码"
-        message: "为账号“" + targetUser + "”设置新密码（4-32 个字符）。"
-        positiveText: "保存"
-        negativeText: "取消"
+        title: I18n.t("重置密码")
+        message: I18n.f("为账号“{0}”设置新密码。用户下次登录时必须修改该密码。",
+                        [targetUser])
+        positiveText: I18n.t("保存")
+        negativeText: I18n.t("取消")
 
         contentDelegate: Component {
-            FluTextBox {
-                width: 320
-                placeholderText: "输入新密码"
-                echoMode: TextInput.Password
-                cleanEnabled: false
+            FluPasswordBox {
+                width: 340
+                placeholderText: I18n.t("新密码（至少 8 位，含大小写和特殊符号）")
                 onTextChanged: resetDialog.newPassword = text
             }
         }
 
         onPositiveClickListener: function() {
-            var error = LibraryService.resetPassword(resetDialog.targetUser, resetDialog.newPassword)
+            var error = LibraryService.resetPassword(resetDialog.targetUser,
+                                                     resetDialog.newPassword)
             if (error === "") {
-                tab.toast("账号“" + resetDialog.targetUser + "”的密码已重置", true)
+                tab.toast(I18n.t("密码已重置，用户下次登录需要修改"), true)
                 resetDialog.close()
             } else {
                 tab.toast(error, false)
@@ -239,15 +278,15 @@ ColumnLayout {
         id: removeDialog
         property string targetUser: ""
 
-        title: "删除账户"
-        message: "确定要删除账号“" + targetUser + "”吗？此操作不可撤销。"
-        positiveText: "删除"
-        negativeText: "取消"
+        title: I18n.t("删除账户")
+        message: I18n.f("确定要删除账号“{0}”吗？此操作不可撤销。", [targetUser])
+        positiveText: I18n.t("删除")
+        negativeText: I18n.t("取消")
 
         onPositiveClicked: {
             var error = LibraryService.removeUser(removeDialog.targetUser)
             if (error === "") {
-                tab.toast("账号“" + removeDialog.targetUser + "”已删除", true)
+                tab.toast(I18n.t("账户已删除"), true)
             } else {
                 tab.toast(error, false)
             }
@@ -257,7 +296,7 @@ ColumnLayout {
     function addUser() {
         var error = LibraryService.addUser(usernameField.text, passwordField.text)
         if (error === "") {
-            toast("账户“" + usernameField.text.trim() + "”创建成功", true)
+            toast(I18n.t("账户创建成功"), true)
             usernameField.text = ""
             passwordField.text = ""
             usernameField.forceActiveFocus()
@@ -285,7 +324,7 @@ ColumnLayout {
         if (success) {
             win.showSuccess(message)
         } else {
-            win.showError(message)
+            win.showError(I18n.t(message))
         }
     }
 }

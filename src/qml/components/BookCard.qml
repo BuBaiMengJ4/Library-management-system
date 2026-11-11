@@ -1,56 +1,70 @@
 import QtQuick
 import QtQuick.Layouts
 import FluentUI 1.0
+import Library 1.0
 
 FluFrame {
     id: control
     property var book: ({})
     property bool showBorrow: false
     property bool showReturn: false
+    property bool showRenew: false
+    property bool adminMode: false
     property bool showBorrower: false
 
     signal borrowRequested()
     signal returnRequested()
+    signal renewRequested()
+    signal manageRequested()
 
-    implicitHeight: 92
+    implicitHeight: 112
     height: implicitHeight
     radius: 8
     border.width: 1
     border.color: FluTheme.dividerColor
     color: FluTheme.dark ? Qt.rgba(1, 1, 1, 0.04) : Qt.rgba(1, 1, 1, 0.92)
 
-    property string metaText: {
-        if (!book) {
-            return ""
-        }
-        var parts = []
-        if (book.author) {
-            parts.push(book.author)
-        }
-        if (book.publisher) {
-            parts.push(book.publisher)
-        }
-        return parts.join(" · ")
-    }
-
     RowLayout {
         anchors.fill: parent
-        anchors.leftMargin: 16
-        anchors.rightMargin: 16
+        anchors.leftMargin: 14
+        anchors.rightMargin: 14
         anchors.topMargin: 12
         anchors.bottomMargin: 12
         spacing: 14
 
         Rectangle {
             Layout.preferredWidth: 58
-            Layout.preferredHeight: 58
-            radius: 8
+            Layout.preferredHeight: 82
+            radius: 6
+            clip: true
             color: FluTools.withOpacity(FluTheme.primaryColor, 0.12)
-            FluText {
+
+            Image {
+                id: cover
+                anchors.fill: parent
+                source: control.book && control.book.hasCover
+                        ? "image://library/cover/" + control.book.number
+                          + "?v=" + LibraryService.imageRevision
+                        : ""
+                fillMode: Image.PreserveAspectCrop
+                visible: status === Image.Ready
+            }
+
+            ColumnLayout {
                 anchors.centerIn: parent
-                text: control.book.numberText || ""
-                font: FluTextStyle.BodyStrong
-                textColor: FluTheme.primaryColor
+                visible: cover.status !== Image.Ready
+                spacing: 2
+                FluIcon {
+                    Layout.alignment: Qt.AlignHCenter
+                    iconSource: FluentIcons.Library
+                    iconSize: 20
+                    iconColor: FluTheme.primaryColor
+                }
+                FluText {
+                    text: control.book ? (control.book.numberText || "") : ""
+                    font: FluTextStyle.Caption
+                    textColor: FluTheme.primaryColor
+                }
             }
         }
 
@@ -59,91 +73,154 @@ FluFrame {
             Layout.minimumWidth: 120
             spacing: 3
 
-            FluText {
-                text: control.book.name || ""
-                font: FluTextStyle.BodyStrong
+            RowLayout {
                 Layout.fillWidth: true
-                elide: Text.ElideRight
+                spacing: 8
+                FluText {
+                    text: control.book ? (control.book.name || "") : ""
+                    font: FluTextStyle.BodyStrong
+                    Layout.fillWidth: true
+                    elide: Text.ElideRight
+                }
+                Rectangle {
+                    visible: control.book
+                             && (control.book.category || "") !== ""
+                             && (control.book.category || "") !== "未分类"
+                    height: 20
+                    width: categoryText.implicitWidth + 12
+                    radius: 3
+                    color: FluTools.withOpacity(FluTheme.primaryColor, 0.10)
+                    FluText {
+                        id: categoryText
+                        anchors.centerIn: parent
+                        text: control.book ? (control.book.category || "") : ""
+                        font: FluTextStyle.Caption
+                        textColor: FluTheme.primaryColor
+                    }
+                }
             }
+
             FluText {
-                text: control.metaText
+                Layout.fillWidth: true
+                text: (control.book ? (control.book.author || "") : "")
+                      + " · " + (control.book ? (control.book.publisher || "") : "")
                 font: FluTextStyle.Caption
                 textColor: FluTheme.fontSecondaryColor
-                Layout.fillWidth: true
                 elide: Text.ElideRight
             }
+
+            FluText {
+                Layout.fillWidth: true
+                visible: control.book && (control.book.description || "") !== ""
+                text: control.book ? (control.book.description || "") : ""
+                font: FluTextStyle.Caption
+                textColor: FluTheme.fontTertiaryColor
+                elide: Text.ElideRight
+            }
+
             RowLayout {
                 spacing: 10
                 FluText {
-                    text: "位置 " + (control.book.place || "未分类")
+                    text: I18n.t("位置：") + (control.book ? (control.book.place || "") : "")
                     font: FluTextStyle.Caption
                     textColor: FluTheme.fontTertiaryColor
                     elide: Text.ElideRight
                 }
                 FluText {
                     visible: control.showBorrower && (control.book.borrower || "") !== ""
-                    text: "借阅人 " + (control.book.borrower || "")
+                    text: I18n.t("借阅人：") + (control.book.borrowerDisplayName || "")
                     font: FluTextStyle.Caption
                     textColor: FluTheme.fontTertiaryColor
                     elide: Text.ElideRight
                 }
                 FluText {
                     visible: (control.book.isMine === true)
-                             && (control.book.borrowedDate || "") !== ""
-                    text: "借于 " + (control.book.borrowedDate || "")
-                          + " · 应还 " + (control.book.dueDate || "")
+                             && (control.book.dueDate || "") !== ""
+                    text: I18n.f("应还 {0}", [control.book.dueDate || ""])
                     font: FluTextStyle.Caption
-                    textColor: FluTheme.fontTertiaryColor
-                    elide: Text.ElideRight
+                    textColor: control.book.overdue ? "#D83B3B" : FluTheme.fontTertiaryColor
                 }
             }
         }
 
-        Rectangle {
-            Layout.preferredWidth: pillText.implicitWidth + 16
-            Layout.preferredHeight: 22
+        ColumnLayout {
+            spacing: 6
             Layout.alignment: Qt.AlignVCenter
-            radius: 4
-            color: {
-                if (control.book.isMine) {
-                    return FluTools.withOpacity(FluTheme.primaryColor, 0.12)
-                }
-                if (control.book.available) {
-                    return Qt.rgba(16 / 255, 124 / 255, 16 / 255, 0.12)
-                }
-                return Qt.rgba(196 / 255, 43 / 255, 28 / 255, 0.12)
-            }
-            FluText {
-                id: pillText
-                anchors.centerIn: parent
-                font: FluTextStyle.Caption
-                text: control.book.isMine ? "我的借阅" : (control.book.availableText || "未知")
-                textColor: {
+
+            Rectangle {
+                Layout.alignment: Qt.AlignHCenter
+                Layout.preferredWidth: pillText.implicitWidth + 16
+                Layout.preferredHeight: 22
+                radius: 4
+                color: {
                     if (control.book.isMine) {
-                        return FluTheme.primaryColor
+                        return FluTools.withOpacity(FluTheme.primaryColor, 0.12)
                     }
                     if (control.book.available) {
-                        return Qt.rgba(16 / 255, 124 / 255, 16 / 255, 1)
+                        return Qt.rgba(16 / 255, 124 / 255, 16 / 255, 0.12)
                     }
-                    return Qt.rgba(196 / 255, 43 / 255, 28 / 255, 1)
+                    if (control.book.overdue) {
+                        return Qt.rgba(196 / 255, 43 / 255, 28 / 255, 0.14)
+                    }
+                    return Qt.rgba(196 / 255, 106 / 255, 27 / 255, 0.12)
+                }
+                FluText {
+                    id: pillText
+                    anchors.centerIn: parent
+                    font: FluTextStyle.Caption
+                    text: {
+                        if (control.book.isMine) {
+                            return control.book.overdue ? I18n.t("已逾期") : I18n.t("我的借阅")
+                        }
+                        if (control.book.available) {
+                            return I18n.t("在馆")
+                        }
+                        return control.book.overdue ? I18n.t("已逾期") : I18n.t("借出")
+                    }
+                    textColor: {
+                        if (control.book.isMine) {
+                            return control.book.overdue ? "#D83B3B" : FluTheme.primaryColor
+                        }
+                        if (control.book.available) {
+                            return Qt.rgba(16 / 255, 124 / 255, 16 / 255, 1)
+                        }
+                        return control.book.overdue
+                               ? "#D83B3B" : Qt.rgba(196 / 255, 106 / 255, 27 / 255, 1)
+                    }
                 }
             }
-        }
 
-        FluFilledButton {
-            visible: control.showBorrow && control.book.available === true
-            Layout.preferredWidth: 74
-            Layout.preferredHeight: 30
-            text: "借书"
-            onClicked: control.borrowRequested()
-        }
+            FluFilledButton {
+                Layout.preferredWidth: 78
+                Layout.preferredHeight: 28
+                visible: control.showBorrow && control.book.available === true
+                text: I18n.t("借书")
+                onClicked: control.borrowRequested()
+            }
 
-        FluButton {
-            visible: control.showReturn && control.book.isMine === true
-            Layout.preferredWidth: 74
-            Layout.preferredHeight: 30
-            text: "归还"
-            onClicked: control.returnRequested()
+            FluButton {
+                Layout.preferredWidth: 78
+                Layout.preferredHeight: 28
+                visible: control.showReturn && control.book.isMine === true
+                text: I18n.t("归还")
+                onClicked: control.returnRequested()
+            }
+
+            FluTextButton {
+                Layout.preferredWidth: 78
+                Layout.preferredHeight: 26
+                visible: control.showRenew && control.book.canRenew === true
+                text: I18n.t("续借")
+                onClicked: control.renewRequested()
+            }
+
+            FluButton {
+                Layout.preferredWidth: 78
+                Layout.preferredHeight: 28
+                visible: control.adminMode
+                text: I18n.t("管理")
+                onClicked: control.manageRequested()
+            }
         }
     }
 }

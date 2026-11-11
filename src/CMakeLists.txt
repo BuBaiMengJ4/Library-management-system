@@ -12,6 +12,8 @@ set(PROJECT_SOURCES
     main.cpp
     backend/Encryption.h
     backend/Encryption.cpp
+    backend/LibraryImageProvider.h
+    backend/LibraryImageProvider.cpp
     backend/LibraryService.h
     backend/LibraryService.cpp
     qml.qrc

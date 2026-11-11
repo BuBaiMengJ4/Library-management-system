@@ -8,7 +8,7 @@ import "../components"
 
 FluContentPage {
     id: page
-    title: "首页"
+    title: ""
 
     property string greeting: {
         var hour = new Date().getHours()
@@ -28,6 +28,7 @@ FluContentPage {
     }
 
     ColumnLayout {
+        id: mainLayout
         anchors.fill: parent
         anchors.leftMargin: 24
         anchors.rightMargin: 24
@@ -69,14 +70,23 @@ FluContentPage {
                     spacing: 6
 
                     FluText {
-                        text: page.greeting + "，" + LibraryService.currentUsername
+                        text: LibraryService.isLoggedIn
+                              ? I18n.f("{0}，{1}", [I18n.t(page.greeting),
+                                                   LibraryService.currentDisplayName])
+                              : I18n.t("欢迎使用图书管理系统")
                         textColor: "white"
-                        font: FluTextStyle.TitleLarge
+                        font: FluTextStyle.Title
                         Layout.fillWidth: true
+                        wrapMode: Text.Wrap
+                        maximumLineCount: 2
                         elide: Text.ElideRight
                     }
                     FluText {
-                        text: "欢迎回到图书管理系统。今天想读点什么？"
+                        text: LibraryService.isAdmin
+                              ? I18n.t("管理员账号可以管理图书和账户，但不能借阅或归还图书。")
+                              : LibraryService.isLoggedIn
+                                ? I18n.t("欢迎回来。借阅期限为 1 个月，每本书可以续借一次。")
+                                : I18n.t("浏览馆藏无需登录；借阅、续借和查看额度需要先登录。")
                         textColor: Qt.rgba(1, 1, 1, 0.86)
                         font: FluTextStyle.Body
                         Layout.fillWidth: true
@@ -86,8 +96,19 @@ FluContentPage {
                         Layout.preferredHeight: 6
                     }
                     FluButton {
-                        text: "开始检索图书"
-                        onClicked: page.navigateTo("search")
+                        text: LibraryService.isLoggedIn
+                              ? I18n.t("开始检索图书")
+                              : I18n.t("登录")
+                        onClicked: {
+                            if (LibraryService.isLoggedIn) {
+                                page.navigateTo("search")
+                            } else {
+                                var win = Window.window
+                                if (win) {
+                                    win.openLogin()
+                                }
+                            }
+                        }
                     }
                 }
 
@@ -102,39 +123,78 @@ FluContentPage {
             }
         }
 
+        Rectangle {
+            Layout.fillWidth: true
+            Layout.preferredHeight: 46
+            visible: LibraryService.blacklisted
+            radius: 8
+            color: Qt.rgba(196 / 255, 43 / 255, 28 / 255, 0.10)
+            RowLayout {
+                anchors.fill: parent
+                anchors.leftMargin: 14
+                anchors.rightMargin: 14
+                spacing: 8
+                FluIcon {
+                    iconSource: FluentIcons.Warning
+                    iconSize: 16
+                    iconColor: "#D83B3B"
+                }
+                FluText {
+                    Layout.fillWidth: true
+                    text: I18n.t("你名下有逾期未还图书，已被列入黑名单。归还全部逾期图书后才能继续借阅。")
+                    font: FluTextStyle.Caption
+                    textColor: "#D83B3B"
+                    elide: Text.ElideRight
+                }
+                FluTextButton {
+                    text: I18n.t("去归还")
+                    onClicked: page.navigateTo("return")
+                }
+            }
+        }
+
         RowLayout {
             Layout.fillWidth: true
             spacing: 14
 
             StatCard {
                 Layout.fillWidth: true
-                title: "馆藏图书"
+                title: I18n.t("馆藏图书")
                 value: String(LibraryService.stats.totalBooks || 0)
-                hint: "全部在册图书"
+                hint: I18n.t("全部在册图书")
                 iconSource: FluentIcons.Library
                 accent: FluTheme.primaryColor
             }
             StatCard {
                 Layout.fillWidth: true
-                title: "可借阅"
+                title: I18n.t("可借阅")
                 value: String(LibraryService.stats.availableBooks || 0)
-                hint: "当前在馆"
+                hint: I18n.t("当前在馆")
                 iconSource: FluentIcons.Completed
                 accent: "#2E9B4F"
             }
             StatCard {
                 Layout.fillWidth: true
-                title: "已借出"
+                title: I18n.t("已借出")
                 value: String(LibraryService.stats.borrowedBooks || 0)
-                hint: "全部读者"
+                hint: I18n.t("全部读者")
                 iconSource: FluentIcons.ReadingList
                 accent: "#C46A1B"
             }
             StatCard {
                 Layout.fillWidth: true
-                title: "我的借阅"
-                value: (LibraryService.myBorrowCount || 0) + " / " + LibraryService.borrowLimit
-                hint: "剩余 " + (LibraryService.stats.myRemaining || 0) + " 本额度"
+                title: I18n.t("我的借阅")
+                value: !LibraryService.isLoggedIn
+                       ? "—"
+                       : (LibraryService.isAdmin
+                          ? "—"
+                          : (LibraryService.myBorrowCount || 0) + " / " + LibraryService.borrowLimit)
+                hint: !LibraryService.isLoggedIn
+                      ? I18n.t("登录后查看")
+                      : (LibraryService.isAdmin
+                         ? I18n.t("管理员不可借阅")
+                         : I18n.f("剩余 {0} 本额度",
+                                  [LibraryService.stats.myRemaining || 0]))
                 iconSource: FluentIcons.Contact
                 accent: "#7A5AF8"
             }
@@ -159,7 +219,7 @@ FluContentPage {
                     spacing: 12
 
                     FluText {
-                        text: "快捷操作"
+                        text: I18n.t("快捷操作")
                         font: FluTextStyle.Title
                     }
 
@@ -170,20 +230,20 @@ FluContentPage {
                         Repeater {
                             model: [
                                 {
-                                    title: "图书检索",
-                                    desc: "按书名、作者、出版社或索书号查找馆藏",
+                                    title: I18n.t("图书检索"),
+                                    desc: I18n.t("按书名、作者、分类或索书号查找馆藏"),
                                     icon: FluentIcons.Search,
                                     route: "search"
                                 },
                                 {
-                                    title: "借阅图书",
-                                    desc: "输入索书号，或从可借列表中挑选",
+                                    title: I18n.t("借阅图书"),
+                                    desc: I18n.t("借阅期限 1 个月，可续借一次"),
                                     icon: FluentIcons.ReadingList,
                                     route: "borrow"
                                 },
                                 {
-                                    title: "归还图书",
-                                    desc: "归还当前账号名下的图书",
+                                    title: I18n.t("归还图书"),
+                                    desc: I18n.t("归还当前账号名下的图书"),
                                     icon: FluentIcons.Completed,
                                     route: "return"
                                 }
@@ -200,7 +260,8 @@ FluContentPage {
                                               : FluTheme.dividerColor
                                 color: quickCard.cardHovered
                                        ? FluTools.withOpacity(FluTheme.primaryColor, 0.06)
-                                       : (FluTheme.dark ? Qt.rgba(1, 1, 1, 0.02) : Qt.rgba(1, 1, 1, 0.7))
+                                       : (FluTheme.dark ? Qt.rgba(1, 1, 1, 0.02)
+                                                        : Qt.rgba(1, 1, 1, 0.7))
                                 property bool cardHovered: false
 
                                 MouseArea {
@@ -286,7 +347,7 @@ FluContentPage {
                             iconColor: FluTheme.primaryColor
                         }
                         FluText {
-                            text: "借阅规则"
+                            text: I18n.t("借阅规则")
                             font: FluTextStyle.Title
                         }
                     }
@@ -301,10 +362,12 @@ FluContentPage {
 
                         Repeater {
                             model: [
-                                "每位读者最多可同时借阅 " + LibraryService.borrowLimit + " 本图书",
-                                "每本图书同一时间仅可被一位读者借阅",
-                                "归还图书后，借阅额度立即恢复",
-                                "管理员可以录入图书、创建账户并重置密码"
+                                I18n.f("每位读者最多可同时借阅 {0} 本图书",
+                                       [LibraryService.borrowLimit]),
+                                I18n.t("借阅期限为 1 个月，每本图书只能续借一次"),
+                                I18n.t("逾期未还会被列入黑名单，无法继续借阅"),
+                                I18n.t("管理员不能借书或还书，只能在管理中心帮助用户归还"),
+                                I18n.t("管理员可以锁定账户、重置密码和查看借阅历史")
                             ]
 
                             Row {
@@ -330,28 +393,55 @@ FluContentPage {
 
                     Rectangle {
                         Layout.fillWidth: true
-                        Layout.preferredHeight: 76
+                        Layout.preferredHeight: 108
                         radius: 8
                         color: FluTools.withOpacity(FluTheme.primaryColor, 0.08)
 
                         ColumnLayout {
                             anchors.fill: parent
                             anchors.margins: 12
-                            spacing: 2
+                            spacing: 3
+
                             FluText {
-                                text: "当前账户"
+                                text: LibraryService.isLoggedIn
+                                      ? I18n.t("当前账户")
+                                      : I18n.t("访客模式")
                                 font: FluTextStyle.Caption
                                 textColor: FluTheme.fontSecondaryColor
                             }
                             FluText {
-                                text: LibraryService.currentUsername + " · " + (LibraryService.isAdmin ? "管理员" : "读者")
+                                Layout.fillWidth: true
+                                text: LibraryService.isLoggedIn
+                                      ? LibraryService.currentDisplayName + " · "
+                                        + (LibraryService.isAdmin
+                                           ? I18n.t("管理员")
+                                           : I18n.t("读者"))
+                                      : I18n.t("登录后可以借阅图书")
                                 font: FluTextStyle.BodyStrong
+                                elide: Text.ElideRight
                             }
                             FluText {
-                                text: "已借 " + LibraryService.myBorrowCount + " 本，剩余 "
-                                      + LibraryService.stats.myRemaining + " 本"
+                                Layout.fillWidth: true
+                                visible: LibraryService.isLoggedIn
+                                text: LibraryService.isAdmin
+                                      ? I18n.t("管理员不能借阅，只能管理图书和用户")
+                                      : I18n.f("已借 {0} 本，剩余 {1} 本",
+                                               [LibraryService.myBorrowCount,
+                                                LibraryService.stats.myRemaining])
                                 font: FluTextStyle.Caption
-                                textColor: FluTheme.fontSecondaryColor
+                                textColor: LibraryService.blacklisted
+                                             ? "#D83B3B" : FluTheme.fontSecondaryColor
+                                elide: Text.ElideRight
+                            }
+                            FluTextButton {
+                                visible: !LibraryService.isLoggedIn
+                                text: I18n.t("登录")
+                                onClicked: {
+                                    var win = Window.window
+                                    if (win) {
+                                        win.openLogin()
+                                    }
+                                }
                             }
                         }
                     }
@@ -361,7 +451,7 @@ FluContentPage {
                     }
 
                     FluText {
-                        text: "数据加密保存在本地 SQLite 数据库，退出程序不会丢失。"
+                        text: I18n.t("数据加密保存在本地 SQLite 数据库，退出程序不会丢失。")
                         font: FluTextStyle.Caption
                         textColor: FluTheme.fontTertiaryColor
                         Layout.fillWidth: true

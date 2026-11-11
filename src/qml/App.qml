@@ -8,9 +8,8 @@ FluLauncher {
         FluApp.init(launcher, Qt.locale("zh_CN"))
         FluApp.windowIcon = "qrc:/resources/library.ico"
         FluRouter.routes = {
-            "/login": "qrc:/qml/LoginWindow.qml",
             "/main": "qrc:/qml/MainWindow.qml"
         }
-        FluRouter.navigate("/login")
+        FluRouter.navigate("/main")
     }
 }

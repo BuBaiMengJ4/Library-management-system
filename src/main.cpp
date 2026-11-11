@@ -1,4 +1,4 @@
-#include <QDateTime>
+﻿#include <QDateTime>
 #include <QDebug>
 #include <QDir>
 #include <QFile>
@@ -7,10 +7,12 @@
 #include <QQmlApplicationEngine>
 #include <QStandardPaths>
 #include <QTextStream>
+#include <QUrl>
 #include <QtQml/qqml.h>
 
 #include <cstdio>
 
+#include "backend/LibraryImageProvider.h"
 #include "backend/LibraryService.h"
 
 namespace {
@@ -76,15 +78,17 @@ int main(int argc, char *argv[]) {
 
     qInfo() << "LibraryManagementSystem 1.0.0 starting";
     qInfo() << "Qt" << QT_VERSION_STR;
-
     LibraryService libraryService;
     qmlRegisterSingletonInstance("Library", 1, 0, "LibraryService", &libraryService);
+    qmlRegisterSingletonType(QUrl(QStringLiteral("qrc:/qml/I18n.qml")),
+                             "Library", 1, 0, "I18n");
 
     QQmlApplicationEngine engine;
     // 开发构建：<build>/bin + <build>/qml/FluentUI；发布目录：<app>/qml/FluentUI。
     engine.addImportPath(app.applicationDirPath() + QStringLiteral("/qml"));
     engine.addImportPath(app.applicationDirPath() + QStringLiteral("/../qml"));
     engine.addImportPath(QStringLiteral("qrc:/qml"));
+    engine.addImageProvider(QStringLiteral("library"), new LibraryImageProvider(&libraryService));
 
     engine.load(QUrl(QStringLiteral("qrc:/qml/App.qml")));
     if (engine.rootObjects().isEmpty()) {

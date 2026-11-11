@@ -8,7 +8,7 @@ import "admin"
 
 FluContentPage {
     id: page
-    title: "管理中心"
+    title: ""
 
     ColumnLayout {
         anchors.fill: parent
@@ -21,14 +21,13 @@ FluContentPage {
         RowLayout {
             Layout.fillWidth: true
             spacing: 8
-
             FluIcon {
                 iconSource: FluentIcons.Admin
                 iconSize: 15
                 iconColor: FluTheme.primaryColor
             }
             FluText {
-                text: "仅管理员可见。图书、账户和借阅数据都会立即加密保存到数据库。"
+                text: I18n.t("仅管理员可见。图书、账户和借阅记录都会立即加密保存到数据库。")
                 font: FluTextStyle.Caption
                 textColor: FluTheme.fontSecondaryColor
                 Layout.fillWidth: true
@@ -37,11 +36,13 @@ FluContentPage {
         }
 
         FluPivot {
+            id: pivot
             Layout.fillWidth: true
             Layout.fillHeight: true
             font: FluTextStyle.Title
+
             FluPivotItem {
-                title: "图书管理"
+                title: I18n.t("图书管理")
                 contentItem: Component {
                     BookAdminTab {
                     }
@@ -49,7 +50,7 @@ FluContentPage {
             }
 
             FluPivotItem {
-                title: "用户管理"
+                title: I18n.t("用户管理")
                 contentItem: Component {
                     UserAdminTab {
                     }
@@ -57,7 +58,7 @@ FluContentPage {
             }
 
             FluPivotItem {
-                title: "数据与示例"
+                title: I18n.t("数据与示例")
                 contentItem: Component {
                     DataTab {
                     }
@@ -65,4 +66,8 @@ FluContentPage {
             }
         }
     }
+
+    Shortcut { sequence: "Ctrl+Shift+1"; onActivated: pivot.currentIndex = 0 }
+    Shortcut { sequence: "Ctrl+Shift+2"; onActivated: pivot.currentIndex = 1 }
+    Shortcut { sequence: "Ctrl+Shift+3"; onActivated: pivot.currentIndex = 2 }
 }
