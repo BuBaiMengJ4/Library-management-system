@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Controls
 import QtQuick.Layouts
 import FluentUI 1.0
 import Library 1.0
@@ -12,12 +13,21 @@ FluAppBar {
     signal loginRequested()
     signal profileRequested()
     signal languageRequested()
+    signal logoutRequested()
 
     height: 36
     icon: ""
     titleVisible: false
     showDark: true
     showStayTop: false
+
+    Component.onCompleted: {
+        var win = Window.window
+        if (win && win.setHitTestVisible) {
+            win.setHitTestVisible(backButton)
+            win.setHitTestVisible(rightControls)
+        }
+    }
 
     Row {
         anchors.left: parent.left
@@ -26,6 +36,7 @@ FluAppBar {
         spacing: 7
 
         FluIconButton {
+            id: backButton
             iconSource: FluentIcons.ChromeBack
             iconSize: 12
             width: 26
@@ -67,6 +78,7 @@ FluAppBar {
     }
 
     Row {
+        id: rightControls
         anchors.right: parent.right
         anchors.rightMargin: 166
         anchors.verticalCenter: parent.verticalCenter
@@ -150,7 +162,99 @@ FluAppBar {
                 cursorShape: Qt.PointingHandCursor
                 Accessible.name: I18n.t("个人资料")
                 Accessible.role: Accessible.Button
-                onClicked: bar.profileRequested()
+                onClicked: accountPopup.open()
+            }
+        }
+    }
+
+    FluPopup {
+        id: accountPopup
+        width: 236
+        x: Math.max(8, bar.width - width - 12)
+        y: bar.height + 4
+        padding: 0
+        closePolicy: Popup.CloseOnPressOutside | Popup.CloseOnEscape
+
+        background: Rectangle {
+            radius: 8
+            color: FluTheme.dark ? "#2B2B2B" : "#FFFFFF"
+            border.width: 1
+            border.color: FluTheme.dividerColor
+        }
+
+        contentItem: ColumnLayout {
+            spacing: 0
+
+            RowLayout {
+                Layout.fillWidth: true
+                Layout.margins: 14
+                spacing: 10
+
+                Rectangle {
+                    Layout.preferredWidth: 36
+                    Layout.preferredHeight: 36
+                    radius: 18
+                    clip: true
+                    color: FluTools.withOpacity(FluTheme.primaryColor, 0.14)
+
+                    Image {
+                        anchors.fill: parent
+                        fillMode: Image.PreserveAspectCrop
+                        source: LibraryService.currentHasAvatar
+                                ? "image://library/avatar/" + LibraryService.currentUsername
+                                  + "?v=" + LibraryService.imageRevision
+                                : ""
+                        visible: status === Image.Ready
+                    }
+                    FluText {
+                        anchors.centerIn: parent
+                        text: LibraryService.currentDisplayName.length > 0
+                              ? LibraryService.currentDisplayName.charAt(0).toUpperCase()
+                              : "?"
+                        font: FluTextStyle.BodyStrong
+                        textColor: FluTheme.primaryColor
+                    }
+                }
+
+                ColumnLayout {
+                    Layout.fillWidth: true
+                    spacing: 2
+                    FluText {
+                        Layout.fillWidth: true
+                        text: LibraryService.currentDisplayName
+                        font: FluTextStyle.BodyStrong
+                        elide: Text.ElideRight
+                    }
+                    FluText {
+                        Layout.fillWidth: true
+                        text: LibraryService.isAdmin ? I18n.t("管理员") : I18n.t("读者")
+                        font: FluTextStyle.Caption
+                        textColor: FluTheme.fontSecondaryColor
+                    }
+                }
+            }
+
+            FluDivider {
+                Layout.fillWidth: true
+            }
+
+            FluTextButton {
+                Layout.fillWidth: true
+                Layout.preferredHeight: 40
+                text: I18n.t("修改个人信息")
+                onClicked: {
+                    accountPopup.close()
+                    bar.profileRequested()
+                }
+            }
+            FluTextButton {
+                Layout.fillWidth: true
+                Layout.preferredHeight: 40
+                text: I18n.t("退出登录")
+                onClicked: {
+                    accountPopup.close()
+                    bar.logoutRequested()
+                }
             }
         }
     }

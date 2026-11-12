@@ -5,6 +5,7 @@ import QtQuick.Controls
 import FluentUI 1.0
 import Library 1.0
 import "../components"
+import "../dialogs"
 
 FluContentPage {
     id: page
@@ -189,6 +190,7 @@ FluContentPage {
                     showRenew: true
                     onReturnRequested: page.doReturn(book)
                     onRenewRequested: page.doRenew(book)
+                    onDetailRequested: bookDetail.openFor(book.number)
                 }
             }
 
@@ -202,6 +204,10 @@ FluContentPage {
                 description: I18n.t("去“借阅图书”看看馆藏，或到“我的借阅”查看借阅额度。")
             }
         }
+    }
+
+    BookDetailDialog {
+        id: bookDetail
     }
 
     function openLogin() {

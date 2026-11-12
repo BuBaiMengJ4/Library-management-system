@@ -1,0 +1,28 @@
+# Maintainer: BuBaiMengJ4
+pkgname=library-management-system
+pkgver=1.0.0
+pkgrel=1
+pkgdesc="FluentUI Qt library management system"
+arch=('x86_64' 'aarch64')
+url="https://github.com/BuBaiMengJ4/Library-management-system"
+license=('MIT')
+depends=('qt6-base' 'qt6-declarative' 'qt6-sql' 'openssl' 'hicolor-icon-theme')
+source=("$pkgname-$pkgver.tar.gz")
+sha256sums=('SKIP')
+
+build() {
+  cmake -S "$pkgname-$pkgver" -B build -G Ninja \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_INSTALL_PREFIX=/usr
+  cmake --build build --parallel "$(nproc)"
+}
+
+package() {
+  DESTDIR="$pkgdir" cmake --install build
+  install -Dm644 "$pkgname-$pkgver/packaging/linux/library.png" \
+    "$pkgdir/usr/share/icons/hicolor/256x256/apps/com.bubaimengj4.LibraryManagementSystem.png"
+  install -Dm644 "$pkgname-$pkgver/packaging/linux/com.bubaimengj4.LibraryManagementSystem.desktop" \
+    "$pkgdir/usr/share/applications/com.bubaimengj4.LibraryManagementSystem.desktop"
+  install -Dm644 "$pkgname-$pkgver/packaging/linux/com.bubaimengj4.LibraryManagementSystem.metainfo.xml" \
+    "$pkgdir/usr/share/metainfo/com.bubaimengj4.LibraryManagementSystem.metainfo.xml"
+}

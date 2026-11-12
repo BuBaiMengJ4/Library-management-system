@@ -1,10 +1,11 @@
-import QtQuick
+﻿import QtQuick
 import QtQuick.Layouts
 import QtQuick.Window
 import QtQuick.Controls
 import FluentUI 1.0
 import Library 1.0
 import "../components"
+import "../dialogs"
 
 FluContentPage {
     id: page
@@ -98,7 +99,7 @@ FluContentPage {
                             textColor: FluTheme.primaryColor
                         }
                         FluText {
-                            text: "/ " + LibraryService.borrowLimit + " 本"
+                            text: "/ " + LibraryService.myBorrowLimit + " 本"
                             font: FluTextStyle.Body
                             textColor: FluTheme.fontSecondaryColor
                             Layout.alignment: Qt.AlignBottom
@@ -125,7 +126,7 @@ FluContentPage {
                         Layout.fillWidth: true
                         Layout.topMargin: 2
                         from: 0
-                        to: LibraryService.borrowLimit
+                        to: LibraryService.myBorrowLimit
                         value: LibraryService.isLoggedIn && !LibraryService.isAdmin
                                ? LibraryService.myBorrowCount : 0
                         indeterminate: false
@@ -232,6 +233,7 @@ FluContentPage {
                     book: modelData
                     showBorrow: !LibraryService.isAdmin
                     onBorrowRequested: page.doBorrow(book)
+                    onDetailRequested: bookDetail.openFor(book.number)
                 }
             }
 
@@ -243,6 +245,10 @@ FluContentPage {
                 description: I18n.t("全部馆藏都已借出，或尚未录入图书。请稍后再试。")
             }
         }
+    }
+
+    BookDetailDialog {
+        id: bookDetail
     }
 
     function openLogin() {

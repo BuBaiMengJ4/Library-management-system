@@ -16,6 +16,7 @@ FluFrame {
     signal returnRequested()
     signal renewRequested()
     signal manageRequested()
+    signal detailRequested()
 
     implicitHeight: 112
     height: implicitHeight
@@ -24,8 +25,15 @@ FluFrame {
     border.color: FluTheme.dividerColor
     color: FluTheme.dark ? Qt.rgba(1, 1, 1, 0.04) : Qt.rgba(1, 1, 1, 0.92)
 
+    MouseArea {
+        anchors.fill: parent
+        cursorShape: Qt.PointingHandCursor
+        onClicked: control.detailRequested()
+    }
+
     RowLayout {
         anchors.fill: parent
+        z: 1
         anchors.leftMargin: 14
         anchors.rightMargin: 14
         anchors.topMargin: 12
@@ -113,9 +121,11 @@ FluFrame {
                 Layout.fillWidth: true
                 visible: control.book && (control.book.description || "") !== ""
                 text: control.book ? (control.book.description || "") : ""
+                textFormat: Text.MarkdownText
                 font: FluTextStyle.Caption
                 textColor: FluTheme.fontTertiaryColor
                 elide: Text.ElideRight
+                maximumLineCount: 1
             }
 
             RowLayout {

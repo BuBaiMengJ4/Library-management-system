@@ -1,16 +1,18 @@
-﻿import QtQuick
+import QtQuick
 import QtQuick.Layouts
 import QtQuick.Window
 import QtQuick.Controls
 import FluentUI 1.0
 import Library 1.0
 import "../components"
+import "../dialogs"
 
 FluContentPage {
     id: page
     title: ""
 
     property var results: []
+    property string viewMode: "list"
 
     ColumnLayout {
         anchors.fill: parent
@@ -122,6 +124,37 @@ FluContentPage {
                 Layout.fillWidth: true
             }
 
+            FluIconButton {
+                iconSource: FluentIcons.BulletedList
+                iconSize: 15
+                width: 32
+                height: 32
+                radius: 4
+                contentDescription: I18n.t("列表视图")
+                Accessible.name: I18n.t("列表视图")
+                color: page.viewMode === "list"
+                       ? FluTools.withOpacity(FluTheme.primaryColor, 0.16)
+                       : "transparent"
+                iconColor: page.viewMode === "list"
+                           ? FluTheme.primaryColor : FluTheme.fontSecondaryColor
+                onClicked: page.viewMode = "list"
+            }
+            FluIconButton {
+                iconSource: FluentIcons.GridView
+                iconSize: 15
+                width: 32
+                height: 32
+                radius: 4
+                contentDescription: I18n.t("宫格视图")
+                Accessible.name: I18n.t("宫格视图")
+                color: page.viewMode === "grid"
+                       ? FluTools.withOpacity(FluTheme.primaryColor, 0.16)
+                       : "transparent"
+                iconColor: page.viewMode === "grid"
+                           ? FluTheme.primaryColor : FluTheme.fontSecondaryColor
+                onClicked: page.viewMode = "grid"
+            }
+
             FluText {
                 visible: !LibraryService.isAdmin
                 text: LibraryService.isLoggedIn
@@ -147,7 +180,7 @@ FluContentPage {
             ListView {
                 id: resultList
                 anchors.fill: parent
-                visible: page.results.length > 0
+                visible: page.viewMode === "list" && page.results.length > 0
                 clip: true
                 spacing: 10
                 model: page.results
@@ -160,7 +193,31 @@ FluContentPage {
                     showReturn: LibraryService.isLoggedIn && !LibraryService.isAdmin
                     onBorrowRequested: page.doBorrow(book)
                     onReturnRequested: page.doReturn(book)
+                    onDetailRequested: bookDetail.openFor(book.number)
                 }
+            }
+
+            GridView {
+                anchors.fill: parent
+                visible: page.viewMode === "grid" && page.results.length > 0
+                clip: true
+                cellWidth: Math.max(190, Math.floor(width / 3))
+                cellHeight: 304
+                model: page.results
+                ScrollBar.vertical: FluScrollBar {}
+
+                delegate: BookGridCard {
+                    width: GridView.view.cellWidth - 10
+                    height: 292
+                    book: modelData
+                    showBorrow: !LibraryService.isAdmin
+                    onBorrowRequested: page.doBorrow(book)
+                    onDetailRequested: bookDetail.openFor(book.number)
+                }
+            }
+
+            BookDetailDialog {
+                id: bookDetail
             }
 
             EmptyState {

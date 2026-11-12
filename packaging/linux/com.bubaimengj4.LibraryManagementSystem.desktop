@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=Library Management System
+Name[zh_CN]=图书管理系统
+Comment=FluentUI Qt library management system
+Comment[zh_CN]=FluentUI Qt 图书管理系统
+Exec=LibraryManagementSystem
+Icon=com.bubaimengj4.LibraryManagementSystem
+Terminal=false
+Categories=Office;Education;
+StartupNotify=true
+StartupWMClass=LibraryManagementSystem

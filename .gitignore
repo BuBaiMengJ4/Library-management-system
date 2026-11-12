@@ -7,6 +7,12 @@ CMakeFiles/
 CMakeUserPresets.json
 *.tsbuildinfo
 *.autosave
+*.dmg
+*.AppImage
+*.flatpak
+*.pkg.tar.zst
+repo/
+build-dir/
 
 # Qt Creator
 .qtcreator/

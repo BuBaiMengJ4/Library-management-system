@@ -1,0 +1,161 @@
+name: build
+
+on:
+  push:
+    branches: [ main, developing ]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: '6.8.3'
+          host: windows
+          target: desktop
+          arch: win64_msvc2022_64
+          cache: true
+      - name: Configure
+        shell: pwsh
+        run: >
+          cmake -S . -B build
+          -DCMAKE_BUILD_TYPE=Release
+          -DCMAKE_PREFIX_PATH="$env:QT_ROOT_DIR"
+      - name: Build
+        shell: pwsh
+        run: cmake --build build --config Release --parallel 3
+      - name: Deploy
+        shell: pwsh
+        run: cmake --build build --config Release --target deploy
+      - uses: actions/upload-artifact@v4
+        with:
+          name: LibraryManagementSystem-windows
+          path: build/dist
+          if-no-files-found: error
+
+  macos:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: '6.8.3'
+          host: mac
+          target: desktop
+          arch: clang_64
+          cache: true
+      - name: Install OpenSSL
+        run: brew install openssl@3
+      - name: Configure
+        run: >
+          cmake -S . -B build -G Ninja
+          -DCMAKE_BUILD_TYPE=Release
+          -DCMAKE_PREFIX_PATH="$QT_ROOT_DIR"
+          -DOPENSSL_ROOT_DIR="$(brew --prefix openssl@3)"
+      - name: Build
+        run: cmake --build build --parallel 3
+      - name: Package DMG
+        env:
+          CMAKE_PREFIX_PATH: ${{ env.QT_ROOT_DIR }}
+        run: bash packaging/macos/build-dmg.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: LibraryManagementSystem-macos
+          path: dist/*.dmg
+          if-no-files-found: error
+
+  linux:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build libssl-dev libxkbcommon-x11-0 \
+            libgl1-mesa-dev libfuse2 patchelf rpm dpkg-dev librsvg2-dev
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: '6.8.3'
+          host: linux
+          target: desktop
+          arch: linux_gcc_64
+          cache: true
+      - name: Configure
+        run: >
+          cmake -S . -B build -G Ninja
+          -DCMAKE_BUILD_TYPE=Release
+          -DCMAKE_PREFIX_PATH="$QT_ROOT_DIR"
+          -DCMAKE_INSTALL_PREFIX=/usr
+      - name: Build
+        run: cmake --build build --parallel 3
+      - name: Create DEB and RPM
+        run: |
+          cd build
+          cpack -G DEB
+          cpack -G RPM
+      - name: Create AppImage
+        env:
+          BUILD_DIR: ${{ github.workspace }}/build
+        run: bash packaging/linux/build-appimage.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: LibraryManagementSystem-linux
+          path: |
+            build/*.deb
+            build/*.rpm
+            dist/*.AppImage
+          if-no-files-found: error
+
+  arch:
+    runs-on: ubuntu-24.04
+    container: archlinux:latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install dependencies
+        run: |
+          pacman -Syu --noconfirm base-devel git cmake ninja qt6-base qt6-declarative qt6-sql openssl
+          useradd -m builder
+          chown -R builder:builder .
+      - name: Build package
+        run: |
+          tar --exclude=build --exclude=.git -czf /tmp/library-management-system-1.0.0.tar.gz \
+            --transform 's,^,library-management-system-1.0.0/,' .
+          chown builder:builder /tmp/library-management-system-1.0.0.tar.gz
+          su builder -c "cd /tmp && tar -xzf library-management-system-1.0.0.tar.gz && cd library-management-system-1.0.0 && cp /tmp/library-management-system-1.0.0.tar.gz . && makepkg -s --noconfirm"
+          cp /tmp/library-management-system-1.0.0/*.pkg.tar.zst .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: LibraryManagementSystem-arch
+          path: '*.pkg.tar.zst'
+          if-no-files-found: error
+
+  flatpak:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Flatpak
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y flatpak flatpak-builder
+          flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
+          flatpak install -y flathub org.kde.Platform/x86_64/6.8 org.kde.Sdk/x86_64/6.8
+      - name: Build Flatpak
+        run: |
+          flatpak-builder --force-clean --repo=repo build-dir \
+            packaging/flatpak/com.bubaimengj4.LibraryManagementSystem.yml
+          flatpak build-bundle repo LibraryManagementSystem.flatpak \
+            com.bubaimengj4.LibraryManagementSystem
+      - uses: actions/upload-artifact@v4
+        with:
+          name: LibraryManagementSystem-flatpak
+          path: LibraryManagementSystem.flatpak
+          if-no-files-found: error

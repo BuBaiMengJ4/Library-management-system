@@ -38,18 +38,37 @@ target_link_libraries(LibraryManagementSystem PRIVATE
     Qt6::Qml
     Qt6::Sql
     fluentuiplugin
-    bcrypt
-    crypt32
 )
+
+if(WIN32)
+    target_link_libraries(LibraryManagementSystem PRIVATE bcrypt crypt32)
+else()
+    find_package(OpenSSL REQUIRED)
+    target_link_libraries(LibraryManagementSystem PRIVATE OpenSSL::Crypto)
+endif()
 
 if(MSVC)
     target_compile_options(LibraryManagementSystem PRIVATE /utf-8)
 endif()
 
-set_target_properties(LibraryManagementSystem PROPERTIES
-    WIN32_EXECUTABLE TRUE
-    MACOSX_BUNDLE FALSE
-)
+if(WIN32)
+    set_target_properties(LibraryManagementSystem PROPERTIES
+        WIN32_EXECUTABLE TRUE
+        OUTPUT_NAME "LibraryManagementSystem"
+    )
+elseif(APPLE)
+    set_target_properties(LibraryManagementSystem PROPERTIES
+        MACOSX_BUNDLE TRUE
+        MACOSX_BUNDLE_BUNDLE_NAME "LibraryManagementSystem"
+        MACOSX_BUNDLE_GUI_IDENTIFIER "com.bubaimengj4.library"
+        MACOSX_BUNDLE_BUNDLE_VERSION "${PROJECT_VERSION}"
+        MACOSX_BUNDLE_SHORT_VERSION_STRING "${PROJECT_VERSION}"
+    )
+else()
+    set_target_properties(LibraryManagementSystem PROPERTIES
+        OUTPUT_NAME "LibraryManagementSystem"
+    )
+endif()
 
 if(WIN32)
     # 让 Windows 资源管理器、任务栏和窗口标题使用与旧版相同的图标。

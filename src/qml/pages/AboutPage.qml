@@ -69,17 +69,17 @@ FluContentPage {
                         spacing: 4
 
                         FluText {
-                            text: "图书管理系统"
+                            text: I18n.t("图书管理系统")
                             textColor: "white"
                             font: FluTextStyle.TitleLarge
                         }
                         FluText {
-                            text: "Vision 1.0（正式版） · Qt QML 重构版"
+                            text: I18n.t("Vision 1.0（正式版） · Qt QML 重构版")
                             textColor: Qt.rgba(1, 1, 1, 0.88)
                             font: FluTextStyle.Body
                         }
                         FluText {
-                            text: "一个用于借阅与归还、账户管理和馆藏检索的桌面图书管理程序。"
+                            text: I18n.t("一个用于借阅与归还、账户管理和馆藏检索的桌面图书管理程序。")
                             textColor: Qt.rgba(1, 1, 1, 0.78)
                             font: FluTextStyle.Caption
                             Layout.fillWidth: true
@@ -95,7 +95,7 @@ FluContentPage {
                                 color: Qt.rgba(1, 1, 1, 0.18)
                                 FluText {
                                     anchors.centerIn: parent
-                                    text: "开源 · Windows"
+                                    text: I18n.t("开源 · Windows")
                                     textColor: "white"
                                     font: FluTextStyle.Caption
                                 }
@@ -119,7 +119,7 @@ FluContentPage {
                         Layout.alignment: Qt.AlignTop
                         spacing: 4
                         FluText {
-                            text: "作者"
+                            text: I18n.t("作者")
                             textColor: Qt.rgba(1, 1, 1, 0.65)
                             font: FluTextStyle.Caption
                             Layout.alignment: Qt.AlignRight
@@ -154,18 +154,18 @@ FluContentPage {
                     spacing: 8
 
                     FluText {
-                        text: "项目简介"
+                        text: I18n.t("项目简介")
                         font: FluTextStyle.Title
                     }
                     FluText {
-                        text: "浏览馆藏无需登录；借阅、续借、归还和管理需要登录。程序使用 Qt 6 QML + FluentUI，并通过 CMake 构建。"
+                        text: I18n.t("浏览馆藏无需登录；借阅、续借、归还和管理需要登录。程序使用 Qt 6 QML + FluentUI，并通过 CMake 构建。")
                         font: FluTextStyle.Body
                         textColor: FluTheme.fontSecondaryColor
                         Layout.fillWidth: true
                         wrapMode: Text.Wrap
                     }
                     FluText {
-                        text: "旧版 control 文本数据会在首次运行时自动迁移到加密的 SQLite 数据库，原始文件不会被修改。"
+                        text: I18n.t("旧版 control 文本数据会在首次运行时自动迁移到加密的 SQLite 数据库，原始文件不会被修改。")
                         font: FluTextStyle.Caption
                         textColor: FluTheme.fontTertiaryColor
                         Layout.fillWidth: true
@@ -192,7 +192,7 @@ FluContentPage {
                         spacing: 10
 
                         FluText {
-                            text: "功能一览"
+                            text: I18n.t("功能一览")
                             font: FluTextStyle.Title
                         }
 
@@ -202,12 +202,12 @@ FluContentPage {
 
                             Repeater {
                                 model: [
-                                    "免登录浏览、图书检索与按分类筛选",
-                                    "借阅期限 1 个月，每本可续借一次",
-                                    "每人最多 12 本；逾期未还进入黑名单",
-                                    "管理员管理图书、账户、帮助归还和锁定账户",
-                                    "密码 PBKDF2 哈希、5 次失败临时锁定 10 分钟",
-                                    "SQLite 加密存储、六种界面语言"
+                                    I18n.t("免登录浏览、图书检索与按分类筛选"),
+                                    I18n.t("借阅期限 1 个月，每本可续借一次"),
+                                    I18n.t("每人最多 12 本；逾期未还进入黑名单"),
+                                    I18n.t("管理员管理图书、账户、帮助归还和锁定账户"),
+                                    I18n.t("密码 PBKDF2 哈希、5 次失败临时锁定 10 分钟"),
+                                    I18n.t("SQLite 加密存储、六种界面语言")
                                 ]
 
                                 Row {
@@ -246,7 +246,7 @@ FluContentPage {
                         spacing: 10
 
                         FluText {
-                            text: "技术架构"
+                            text: I18n.t("技术架构")
                             font: FluTextStyle.Title
                         }
 
@@ -258,7 +258,7 @@ FluContentPage {
                             rowSpacing: 8
 
                             FluText {
-                                text: "界面框架"
+                                text: I18n.t("界面框架")
                                 font: FluTextStyle.Caption
                                 textColor: FluTheme.fontSecondaryColor
                             }
@@ -268,7 +268,7 @@ FluContentPage {
                                 Layout.fillWidth: true
                             }
                             FluText {
-                                text: "构建系统"
+                                text: I18n.t("构建系统")
                                 font: FluTextStyle.Caption
                                 textColor: FluTheme.fontSecondaryColor
                             }
@@ -278,17 +278,17 @@ FluContentPage {
                                 Layout.fillWidth: true
                             }
                             FluText {
-                                text: "业务核心"
+                                text: I18n.t("业务核心")
                                 font: FluTextStyle.Caption
                                 textColor: FluTheme.fontSecondaryColor
                             }
                             FluText {
-                                text: "C++17 + QML 单例服务"
+                                text: I18n.t("C++17 + QML 单例服务")
                                 font: FluTextStyle.Body
                                 Layout.fillWidth: true
                             }
                             FluText {
-                                text: "数据存储"
+                                text: I18n.t("数据存储")
                                 font: FluTextStyle.Caption
                                 textColor: FluTheme.fontSecondaryColor
                             }
@@ -296,14 +296,15 @@ FluContentPage {
                                 text: "SQLite / AES / PBKDF2"
                                 font: FluTextStyle.Body
                                 Layout.fillWidth: true
+                                wrapMode: Text.Wrap
                             }
                             FluText {
-                                text: "运行平台"
+                                text: I18n.t("运行平台")
                                 font: FluTextStyle.Caption
                                 textColor: FluTheme.fontSecondaryColor
                             }
                             FluText {
-                                text: "Windows 10 / 11（64 位）"
+                                text: I18n.t("Windows / macOS / Linux（64 位）")
                                 font: FluTextStyle.Body
                                 Layout.fillWidth: true
                             }
@@ -314,7 +315,7 @@ FluContentPage {
                         }
 
                         FluText {
-                            text: "重构自 Vision 1.0（CMD + MSVC）"
+                            text: I18n.t("重构自 Vision 1.0（CMD + MSVC）")
                             font: FluTextStyle.Caption
                             textColor: FluTheme.fontTertiaryColor
                         }
@@ -337,7 +338,7 @@ FluContentPage {
                     spacing: 10
 
                     FluText {
-                        text: "常见问题"
+                        text: I18n.t("常见问题")
                         font: FluTextStyle.Title
                     }
 
@@ -365,7 +366,7 @@ FluContentPage {
                                 },
                                 {
                                     q: "密码是如何保存的？",
-                                    a: "密码只保存 PBKDF2-HMAC-SHA256 哈希，不能还原为原文。管理员不能查看用户密码，只能重置；用户首次登录或被重置后必须修改密码。"
+                                    a: "密码只保存 PBKDF2-HMAC-SHA256 哈希，不能还原为原文。管理员不能查看用户密码，只能重置；管理员首次登录必须修改密码，普通读者可在个人资料中自行修改。"
                                 },
                                 {
                                     q: "数据保存在哪里？",
@@ -418,11 +419,11 @@ FluContentPage {
                         Layout.fillWidth: true
                         spacing: 2
                         FluText {
-                            text: "反馈与贡献"
+                            text: I18n.t("反馈与贡献")
                             font: FluTextStyle.BodyStrong
                         }
                         FluText {
-                            text: "遇到问题或有改进建议？欢迎通过反馈表单或 GitHub 告诉我们。"
+                            text: I18n.t("遇到问题或有改进建议？欢迎通过反馈表单或 GitHub 告诉我们。")
                             font: FluTextStyle.Caption
                             textColor: FluTheme.fontSecondaryColor
                             Layout.fillWidth: true
@@ -431,21 +432,30 @@ FluContentPage {
                     }
 
                     FluFilledButton {
-                        text: "发送反馈"
-                        onClicked: LibraryService.openExternalUrl(page.feedbackUrl)
+                        text: I18n.t("发送反馈")
+                        onClicked: page.openLink(page.feedbackUrl)
                     }
                     FluButton {
-                        text: "GitHub 仓库"
-                        onClicked: LibraryService.openExternalUrl(page.repositoryUrl)
+                        text: I18n.t("GitHub 仓库")
+                        onClicked: page.openLink(page.repositoryUrl)
                     }
                 }
             }
 
             FluText {
-                text: "© 2024-2026 BuBaiMengJ4 & xiaoyu1145 · 本项目为开源学习项目"
+                text: I18n.t("© 2024-2026 BuBaiMengJ4 & xiaoyu1145 · 本项目为开源学习项目")
                 font: FluTextStyle.Caption
                 textColor: FluTheme.fontTertiaryColor
                 Layout.alignment: Qt.AlignHCenter
+            }
+        }
+    }
+
+    function openLink(url) {
+        if (!LibraryService.openExternalUrl(url)) {
+            var win = Window.window
+            if (win && win.showError) {
+                win.showError(I18n.t("无法打开浏览器，请手动访问链接"))
             }
         }
     }

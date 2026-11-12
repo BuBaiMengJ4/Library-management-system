@@ -7,21 +7,28 @@
 
 #include <cstring>
 
-#ifndef NOMINMAX
-#define NOMINMAX
+#ifdef Q_OS_WIN
+#  ifndef NOMINMAX
+#    define NOMINMAX
+#  endif
+#  include <windows.h>
+#  include <bcrypt.h>
+#  include <wincrypt.h>
+#else
+#  include <openssl/evp.h>
+#  include <openssl/rand.h>
 #endif
-#include <windows.h>
-#include <bcrypt.h>
-#include <wincrypt.h>
 
 namespace {
 
-constexpr char kKeyMagic[] = "LMSK1";
+constexpr char kWindowsMagic[] = "LMSK1";
+constexpr char kPortableMagic[] = "LMSK2";
 constexpr int kKeySize = 32;
 constexpr int kNonceSize = 12;
 constexpr int kTagSize = 16;
 constexpr quint8 kBlobVersion = 0x01;
 
+#ifdef Q_OS_WIN
 QString windowsError(quint32 code) {
     return QStringLiteral("Windows 错误 0x%1").arg(code, 8, 16, QLatin1Char('0'));
 }
@@ -29,8 +36,8 @@ QString windowsError(quint32 code) {
 bool protectKey(const QByteArray &key, QByteArray *protectedKey, QString *error) {
     DATA_BLOB input{static_cast<DWORD>(key.size()),
                     reinterpret_cast<BYTE *>(const_cast<char *>(key.constData()))};
-    DATA_BLOB entropy{sizeof(kKeyMagic) - 1,
-                      reinterpret_cast<BYTE *>(const_cast<char *>(kKeyMagic))};
+    DATA_BLOB entropy{sizeof(kWindowsMagic) - 1,
+                      reinterpret_cast<BYTE *>(const_cast<char *>(kWindowsMagic))};
     DATA_BLOB output{};
     if (!CryptProtectData(&input,
                           L"LibraryManagementSystem master key",
@@ -53,8 +60,8 @@ bool protectKey(const QByteArray &key, QByteArray *protectedKey, QString *error)
 bool unprotectKey(const QByteArray &protectedKey, QByteArray *key, QString *error) {
     DATA_BLOB input{static_cast<DWORD>(protectedKey.size()),
                     reinterpret_cast<BYTE *>(const_cast<char *>(protectedKey.constData()))};
-    DATA_BLOB entropy{sizeof(kKeyMagic) - 1,
-                      reinterpret_cast<BYTE *>(const_cast<char *>(kKeyMagic))};
+    DATA_BLOB entropy{sizeof(kWindowsMagic) - 1,
+                      reinterpret_cast<BYTE *>(const_cast<char *>(kWindowsMagic))};
     DATA_BLOB output{};
     if (!CryptUnprotectData(&input,
                             nullptr,
@@ -73,6 +80,173 @@ bool unprotectKey(const QByteArray &protectedKey, QByteArray *key, QString *erro
     LocalFree(output.pbData);
     return true;
 }
+#else
+bool protectKey(const QByteArray &key, QByteArray *protectedKey, QString *error) {
+    Q_UNUSED(error)
+    *protectedKey = key;
+    return true;
+}
+
+bool unprotectKey(const QByteArray &protectedKey, QByteArray *key, QString *error) {
+    Q_UNUSED(error)
+    *key = protectedKey;
+    return true;
+}
+#endif
+
+QByteArray randomBytes(int size) {
+    QByteArray bytes(size, '\0');
+    for (int i = 0; i < size; i += 4) {
+        const quint32 value = QRandomGenerator::system()->generate();
+        const int count = qMin(4, size - i);
+        std::memcpy(bytes.data() + i, &value, static_cast<size_t>(count));
+    }
+    return bytes;
+}
+
+#ifndef Q_OS_WIN
+bool opensslEncrypt(const QByteArray &key,
+                    const QByteArray &nonce,
+                    const QByteArray &aad,
+                    const QByteArray &plainText,
+                    QByteArray *cipherText,
+                    QByteArray *tag,
+                    QString *error) {
+    EVP_CIPHER_CTX *ctx = EVP_CIPHER_CTX_new();
+    if (!ctx) {
+        if (error) {
+            *error = QStringLiteral("无法创建 OpenSSL 加密上下文");
+        }
+        return false;
+    }
+    bool ok = false;
+    int length = 0;
+    int total = 0;
+    QByteArray output(plainText.size() + EVP_CIPHER_block_size(EVP_aes_256_gcm()), '\0');
+    do {
+        if (EVP_EncryptInit_ex(ctx, EVP_aes_256_gcm(), nullptr, nullptr, nullptr) != 1) {
+            break;
+        }
+        if (EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_SET_IVLEN, nonce.size(), nullptr) != 1) {
+            break;
+        }
+        if (EVP_EncryptInit_ex(ctx, nullptr, nullptr,
+                               reinterpret_cast<const unsigned char *>(key.constData()),
+                               reinterpret_cast<const unsigned char *>(nonce.constData()))
+            != 1) {
+            break;
+        }
+        if (!aad.isEmpty()
+            && EVP_EncryptUpdate(ctx, nullptr, &length,
+                                 reinterpret_cast<const unsigned char *>(aad.constData()),
+                                 aad.size())
+                   != 1) {
+            break;
+        }
+        if (!plainText.isEmpty()
+            && EVP_EncryptUpdate(ctx,
+                                 reinterpret_cast<unsigned char *>(output.data()), &length,
+                                 reinterpret_cast<const unsigned char *>(plainText.constData()),
+                                 plainText.size())
+                   != 1) {
+            break;
+        }
+        total = plainText.isEmpty() ? 0 : length;
+        if (EVP_EncryptFinal_ex(ctx,
+                                reinterpret_cast<unsigned char *>(output.data()) + total,
+                                &length)
+            != 1) {
+            break;
+        }
+        total += length;
+        QByteArray tagBuffer(kTagSize, '\0');
+        if (EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_GET_TAG, kTagSize, tagBuffer.data()) != 1) {
+            break;
+        }
+        output.truncate(total);
+        *cipherText = output;
+        *tag = tagBuffer;
+        ok = true;
+    } while (false);
+    EVP_CIPHER_CTX_free(ctx);
+    if (!ok && error) {
+        *error = QStringLiteral("AES-GCM 加密失败");
+    }
+    return ok;
+}
+
+bool opensslDecrypt(const QByteArray &key,
+                    const QByteArray &nonce,
+                    const QByteArray &aad,
+                    const QByteArray &cipherText,
+                    const QByteArray &tag,
+                    QByteArray *plainText,
+                    QString *error) {
+    EVP_CIPHER_CTX *ctx = EVP_CIPHER_CTX_new();
+    if (!ctx) {
+        if (error) {
+            *error = QStringLiteral("无法创建 OpenSSL 解密上下文");
+        }
+        return false;
+    }
+    bool ok = false;
+    int length = 0;
+    int total = 0;
+    QByteArray output(cipherText.size() + EVP_CIPHER_block_size(EVP_aes_256_gcm()), '\0');
+    do {
+        if (EVP_DecryptInit_ex(ctx, EVP_aes_256_gcm(), nullptr, nullptr, nullptr) != 1) {
+            break;
+        }
+        if (EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_SET_IVLEN, nonce.size(), nullptr) != 1) {
+            break;
+        }
+        if (EVP_DecryptInit_ex(ctx, nullptr, nullptr,
+                               reinterpret_cast<const unsigned char *>(key.constData()),
+                               reinterpret_cast<const unsigned char *>(nonce.constData()))
+            != 1) {
+            break;
+        }
+        if (!aad.isEmpty()
+            && EVP_DecryptUpdate(ctx, nullptr, &length,
+                                 reinterpret_cast<const unsigned char *>(aad.constData()),
+                                 aad.size())
+                   != 1) {
+            break;
+        }
+        if (!cipherText.isEmpty()
+            && EVP_DecryptUpdate(ctx,
+                                 reinterpret_cast<unsigned char *>(output.data()), &length,
+                                 reinterpret_cast<const unsigned char *>(cipherText.constData()),
+                                 cipherText.size())
+                   != 1) {
+            break;
+        }
+        total = cipherText.isEmpty() ? 0 : length;
+        QByteArray tagBuffer = tag;
+        if (EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_SET_TAG, kTagSize, tagBuffer.data()) != 1) {
+            break;
+        }
+        if (EVP_DecryptFinal_ex(ctx,
+                                reinterpret_cast<unsigned char *>(output.data()) + total,
+                                &length)
+            != 1) {
+            if (error) {
+                *error = QStringLiteral("字段完整性校验失败，数据可能被篡改或密钥不匹配");
+            }
+            break;
+        }
+        total += length;
+        output.truncate(total);
+        *plainText = output;
+        ok = true;
+    } while (false);
+    EVP_CIPHER_CTX_free(ctx);
+    if (!ok && error && error->isEmpty()) {
+        *error = QStringLiteral("AES-GCM 解密失败");
+    }
+    return ok;
+}
+#endif
 
 } // namespace
 
@@ -117,16 +291,20 @@ bool Encryption::loadKey(const QString &keyFilePath, QString *error) {
         return false;
     }
     const QByteArray data = file.readAll();
-    if (data.size() <= static_cast<int>(sizeof(kKeyMagic) - 1)
-        || data.left(sizeof(kKeyMagic) - 1) != QByteArray(kKeyMagic, sizeof(kKeyMagic) - 1)) {
+#ifdef Q_OS_WIN
+    const QByteArray magic(kWindowsMagic, sizeof(kWindowsMagic) - 1);
+#else
+    const QByteArray magic(kPortableMagic, sizeof(kPortableMagic) - 1);
+#endif
+    if (data.size() <= magic.size() || data.left(magic.size()) != magic) {
         if (error) {
-            *error = QStringLiteral("密钥文件格式无效");
+            *error = QStringLiteral("密钥文件格式无效，或来自其他平台/其他保护方式");
         }
         return false;
     }
 
     QByteArray key;
-    if (!unprotectKey(data.mid(sizeof(kKeyMagic) - 1), &key, error)) {
+    if (!unprotectKey(data.mid(magic.size()), &key, error)) {
         return false;
     }
     if (key.size() != kKeySize) {
@@ -140,11 +318,7 @@ bool Encryption::loadKey(const QString &keyFilePath, QString *error) {
 }
 
 bool Encryption::createKey(const QString &keyFilePath, QString *error) {
-    QByteArray key(kKeySize, '\0');
-    for (int i = 0; i < kKeySize; i += 4) {
-        const quint32 value = QRandomGenerator::system()->generate();
-        std::memcpy(key.data() + i, &value, 4);
-    }
+    const QByteArray key = randomBytes(kKeySize);
 
     QByteArray protectedKey;
     if (!protectKey(key, &protectedKey, error)) {
@@ -158,7 +332,11 @@ bool Encryption::createKey(const QString &keyFilePath, QString *error) {
         }
         return false;
     }
-    file.write(kKeyMagic, sizeof(kKeyMagic) - 1);
+#ifdef Q_OS_WIN
+    file.write(kWindowsMagic, sizeof(kWindowsMagic) - 1);
+#else
+    file.write(kPortableMagic, sizeof(kPortableMagic) - 1);
+#endif
     file.write(protectedKey);
     if (!file.commit()) {
         if (error) {
@@ -172,11 +350,13 @@ bool Encryption::createKey(const QString &keyFilePath, QString *error) {
 }
 
 bool Encryption::setupKey(QString *error) {
+#ifdef Q_OS_WIN
     BCRYPT_ALG_HANDLE algorithm = nullptr;
     NTSTATUS status = BCryptOpenAlgorithmProvider(&algorithm, BCRYPT_AES_ALGORITHM, nullptr, 0);
     if (!BCRYPT_SUCCESS(status)) {
         if (error) {
-            *error = QStringLiteral("无法初始化 AES 加密算法：%1").arg(windowsError(static_cast<quint32>(status)));
+            *error = QStringLiteral("无法初始化 AES 加密算法：%1")
+                             .arg(windowsError(static_cast<quint32>(status)));
         }
         return false;
     }
@@ -189,7 +369,8 @@ bool Encryption::setupKey(QString *error) {
     if (!BCRYPT_SUCCESS(status)) {
         BCryptCloseAlgorithmProvider(algorithm, 0);
         if (error) {
-            *error = QStringLiteral("无法启用 AES-GCM 模式：%1").arg(windowsError(static_cast<quint32>(status)));
+            *error = QStringLiteral("无法启用 AES-GCM 模式：%1")
+                             .arg(windowsError(static_cast<quint32>(status)));
         }
         return false;
     }
@@ -205,7 +386,8 @@ bool Encryption::setupKey(QString *error) {
     if (!BCRYPT_SUCCESS(status)) {
         BCryptCloseAlgorithmProvider(algorithm, 0);
         if (error) {
-            *error = QStringLiteral("无法创建 AES 密钥句柄：%1").arg(windowsError(static_cast<quint32>(status)));
+            *error = QStringLiteral("无法创建 AES 密钥句柄：%1")
+                             .arg(windowsError(static_cast<quint32>(status)));
         }
         return false;
     }
@@ -213,9 +395,19 @@ bool Encryption::setupKey(QString *error) {
     m_alg = algorithm;
     m_keyHandle = keyHandle;
     return true;
+#else
+    if (m_key.size() != kKeySize) {
+        if (error) {
+            *error = QStringLiteral("密钥长度无效");
+        }
+        return false;
+    }
+    return true;
+#endif
 }
 
-QByteArray Encryption::encrypt(const QByteArray &plaintext, const QByteArray &aad, QString *error) const {
+QByteArray Encryption::encrypt(const QByteArray &plaintext, const QByteArray &aad,
+                               QString *error) const {
     if (!isReady()) {
         if (error) {
             *error = QStringLiteral("加密服务尚未初始化");
@@ -223,18 +415,18 @@ QByteArray Encryption::encrypt(const QByteArray &plaintext, const QByteArray &aa
         return {};
     }
 
-    QByteArray nonce(kNonceSize, '\0');
-    for (int i = 0; i < kNonceSize; i += 4) {
-        const quint32 value = QRandomGenerator::system()->generate();
-        std::memcpy(nonce.data() + i, &value, 4);
-    }
+    const QByteArray nonce = randomBytes(kNonceSize);
     QByteArray tag(kTagSize, '\0');
+    QByteArray cipherText;
 
+#ifdef Q_OS_WIN
     BCRYPT_AUTHENTICATED_CIPHER_MODE_INFO authInfo;
     BCRYPT_INIT_AUTH_MODE_INFO(authInfo);
-    authInfo.pbNonce = reinterpret_cast<PUCHAR>(nonce.data());
+    authInfo.pbNonce = reinterpret_cast<PUCHAR>(const_cast<char *>(nonce.constData()));
     authInfo.cbNonce = static_cast<ULONG>(nonce.size());
-    authInfo.pbAuthData = aad.isEmpty() ? nullptr : reinterpret_cast<PUCHAR>(const_cast<char *>(aad.constData()));
+    authInfo.pbAuthData = aad.isEmpty()
+                              ? nullptr
+                              : reinterpret_cast<PUCHAR>(const_cast<char *>(aad.constData()));
     authInfo.cbAuthData = static_cast<ULONG>(aad.size());
     authInfo.pbTag = reinterpret_cast<PUCHAR>(tag.data());
     authInfo.cbTag = static_cast<ULONG>(tag.size());
@@ -242,7 +434,9 @@ QByteArray Encryption::encrypt(const QByteArray &plaintext, const QByteArray &aa
     BCRYPT_KEY_HANDLE keyHandle = static_cast<BCRYPT_KEY_HANDLE>(m_keyHandle);
     ULONG resultSize = 0;
     NTSTATUS status = BCryptEncrypt(keyHandle,
-                                    plaintext.isEmpty() ? nullptr : reinterpret_cast<PUCHAR>(const_cast<char *>(plaintext.constData())),
+                                    plaintext.isEmpty()
+                                            ? nullptr
+                                            : reinterpret_cast<PUCHAR>(const_cast<char *>(plaintext.constData())),
                                     static_cast<ULONG>(plaintext.size()),
                                     &authInfo,
                                     nullptr,
@@ -253,29 +447,39 @@ QByteArray Encryption::encrypt(const QByteArray &plaintext, const QByteArray &aa
                                     0);
     if (!BCRYPT_SUCCESS(status)) {
         if (error) {
-            *error = QStringLiteral("加密字段失败：%1").arg(windowsError(static_cast<quint32>(status)));
+            *error = QStringLiteral("加密字段失败：%1")
+                             .arg(windowsError(static_cast<quint32>(status)));
         }
         return {};
     }
 
-    QByteArray cipherText(static_cast<int>(resultSize), '\0');
+    cipherText = QByteArray(static_cast<int>(resultSize), '\0');
     status = BCryptEncrypt(keyHandle,
-                           plaintext.isEmpty() ? nullptr : reinterpret_cast<PUCHAR>(const_cast<char *>(plaintext.constData())),
+                           plaintext.isEmpty()
+                                   ? nullptr
+                                   : reinterpret_cast<PUCHAR>(const_cast<char *>(plaintext.constData())),
                            static_cast<ULONG>(plaintext.size()),
                            &authInfo,
                            nullptr,
                            0,
-                           resultSize == 0 ? nullptr : reinterpret_cast<PUCHAR>(cipherText.data()),
+                           resultSize == 0 ? nullptr
+                                           : reinterpret_cast<PUCHAR>(cipherText.data()),
                            static_cast<ULONG>(cipherText.size()),
                            &resultSize,
                            0);
     if (!BCRYPT_SUCCESS(status)) {
         if (error) {
-            *error = QStringLiteral("加密字段失败：%1").arg(windowsError(static_cast<quint32>(status)));
+            *error = QStringLiteral("加密字段失败：%1")
+                             .arg(windowsError(static_cast<quint32>(status)));
         }
         return {};
     }
     cipherText.truncate(static_cast<int>(resultSize));
+#else
+    if (!opensslEncrypt(m_key, nonce, aad, plaintext, &cipherText, &tag, error)) {
+        return {};
+    }
+#endif
 
     QByteArray blob;
     blob.reserve(1 + nonce.size() + tag.size() + cipherText.size());
@@ -286,7 +490,8 @@ QByteArray Encryption::encrypt(const QByteArray &plaintext, const QByteArray &aa
     return blob;
 }
 
-QByteArray Encryption::decrypt(const QByteArray &blob, const QByteArray &aad, QString *error) const {
+QByteArray Encryption::decrypt(const QByteArray &blob, const QByteArray &aad,
+                               QString *error) const {
     if (!isReady()) {
         if (error) {
             *error = QStringLiteral("加密服务尚未初始化");
@@ -304,12 +509,16 @@ QByteArray Encryption::decrypt(const QByteArray &blob, const QByteArray &aad, QS
     const QByteArray nonce = blob.mid(1, kNonceSize);
     const QByteArray tag = blob.mid(1 + kNonceSize, kTagSize);
     const QByteArray cipherText = blob.mid(1 + kNonceSize + kTagSize);
+    QByteArray plainText;
 
+#ifdef Q_OS_WIN
     BCRYPT_AUTHENTICATED_CIPHER_MODE_INFO authInfo;
     BCRYPT_INIT_AUTH_MODE_INFO(authInfo);
     authInfo.pbNonce = reinterpret_cast<PUCHAR>(const_cast<char *>(nonce.constData()));
     authInfo.cbNonce = static_cast<ULONG>(nonce.size());
-    authInfo.pbAuthData = aad.isEmpty() ? nullptr : reinterpret_cast<PUCHAR>(const_cast<char *>(aad.constData()));
+    authInfo.pbAuthData = aad.isEmpty()
+                              ? nullptr
+                              : reinterpret_cast<PUCHAR>(const_cast<char *>(aad.constData()));
     authInfo.cbAuthData = static_cast<ULONG>(aad.size());
     authInfo.pbTag = reinterpret_cast<PUCHAR>(const_cast<char *>(tag.constData()));
     authInfo.cbTag = static_cast<ULONG>(tag.size());
@@ -317,7 +526,9 @@ QByteArray Encryption::decrypt(const QByteArray &blob, const QByteArray &aad, QS
     BCRYPT_KEY_HANDLE keyHandle = static_cast<BCRYPT_KEY_HANDLE>(m_keyHandle);
     ULONG resultSize = 0;
     NTSTATUS status = BCryptDecrypt(keyHandle,
-                                    cipherText.isEmpty() ? nullptr : reinterpret_cast<PUCHAR>(const_cast<char *>(cipherText.constData())),
+                                    cipherText.isEmpty()
+                                            ? nullptr
+                                            : reinterpret_cast<PUCHAR>(const_cast<char *>(cipherText.constData())),
                                     static_cast<ULONG>(cipherText.size()),
                                     &authInfo,
                                     nullptr,
@@ -333,14 +544,17 @@ QByteArray Encryption::decrypt(const QByteArray &blob, const QByteArray &aad, QS
         return {};
     }
 
-    QByteArray plainText(static_cast<int>(resultSize), '\0');
+    plainText = QByteArray(static_cast<int>(resultSize), '\0');
     status = BCryptDecrypt(keyHandle,
-                           cipherText.isEmpty() ? nullptr : reinterpret_cast<PUCHAR>(const_cast<char *>(cipherText.constData())),
+                           cipherText.isEmpty()
+                                   ? nullptr
+                                   : reinterpret_cast<PUCHAR>(const_cast<char *>(cipherText.constData())),
                            static_cast<ULONG>(cipherText.size()),
                            &authInfo,
                            nullptr,
                            0,
-                           resultSize == 0 ? nullptr : reinterpret_cast<PUCHAR>(plainText.data()),
+                           resultSize == 0 ? nullptr
+                                           : reinterpret_cast<PUCHAR>(plainText.data()),
                            static_cast<ULONG>(plainText.size()),
                            &resultSize,
                            0);
@@ -351,10 +565,16 @@ QByteArray Encryption::decrypt(const QByteArray &blob, const QByteArray &aad, QS
         return {};
     }
     plainText.truncate(static_cast<int>(resultSize));
+#else
+    if (!opensslDecrypt(m_key, nonce, aad, cipherText, tag, &plainText, error)) {
+        return {};
+    }
+#endif
     return plainText;
 }
 
 void Encryption::cleanup() {
+#ifdef Q_OS_WIN
     if (m_keyHandle) {
         BCryptDestroyKey(static_cast<BCRYPT_KEY_HANDLE>(m_keyHandle));
         m_keyHandle = nullptr;
@@ -363,5 +583,6 @@ void Encryption::cleanup() {
         BCryptCloseAlgorithmProvider(static_cast<BCRYPT_ALG_HANDLE>(m_alg), 0);
         m_alg = nullptr;
     }
+#endif
     m_key.clear();
 }

@@ -28,7 +28,7 @@ ColumnLayout {
                 font: FluTextStyle.Title
             }
             FluText {
-                text: I18n.t("新账户首次登录必须修改密码。密码需包含大写、小写、数字和特殊符号，至少 8 位。")
+                text: I18n.t("新账户使用初始密码登录，密码需包含大写、小写、数字和特殊符号，至少 8 位。")
                 font: FluTextStyle.Caption
                 textColor: FluTheme.fontSecondaryColor
                 Layout.fillWidth: true
@@ -186,7 +186,8 @@ ColumnLayout {
                                 textColor: FluTheme.fontSecondaryColor
                             }
                             FluText {
-                                text: I18n.f("已借 {0} 本", [modelData.borrowCount])
+                                text: I18n.f("已借 {0} 本 · 上限 {1} 本",
+                                             [modelData.borrowCount, modelData.borrowLimit])
                                 font: FluTextStyle.Caption
                                 textColor: FluTheme.fontSecondaryColor
                             }
@@ -214,30 +215,98 @@ ColumnLayout {
                         }
                     }
 
-                    FluTextButton {
-                        text: modelData.locked ? I18n.t("解锁") : I18n.t("锁定")
-                        enabled: !modelData.admin && !modelData.isCurrent
-                        onClicked: {
-                            var error = LibraryService.setUserLocked(modelData.username,
-                                                                     !modelData.locked)
-                            if (error === "") {
-                                ListView.view.owner.toast(I18n.t(modelData.locked
-                                                                  ? "已解锁账户" : "已锁定账户"),
-                                                          true)
-                            } else {
-                                ListView.view.owner.toast(error, false)
+                    RowLayout {
+                        Layout.preferredWidth: 306
+                        Layout.alignment: Qt.AlignVCenter
+                        spacing: 0
+
+                        FluTextButton {
+                            Layout.preferredWidth: 58
+                            Layout.alignment: Qt.AlignVCenter
+                            text: I18n.t("额度")
+                            onClicked: ListView.view.owner.openLimit(modelData.username,
+                                                                     modelData.borrowLimit)
+                        }
+
+                        FluTextButton {
+                            Layout.preferredWidth: 62
+                            Layout.alignment: Qt.AlignVCenter
+                            text: modelData.locked ? I18n.t("解锁") : I18n.t("锁定")
+                            enabled: !modelData.admin && !modelData.isCurrent
+                            onClicked: {
+                                var error = LibraryService.setUserLocked(modelData.username,
+                                                                         !modelData.locked)
+                                if (error === "") {
+                                    ListView.view.owner.toast(
+                                                I18n.t(modelData.locked ? "已解锁账户"
+                                                                        : "已锁定账户"),
+                                                true)
+                                } else {
+                                    ListView.view.owner.toast(error, false)
+                                }
                             }
                         }
+                        FluTextButton {
+                            Layout.preferredWidth: 100
+                            Layout.alignment: Qt.AlignVCenter
+                            text: I18n.t("重置密码")
+                            onClicked: ListView.view.owner.openReset(modelData.username)
+                        }
+                        FluTextButton {
+                            Layout.preferredWidth: 62
+                            Layout.alignment: Qt.AlignVCenter
+                            text: I18n.t("删除")
+                            enabled: !modelData.admin && !modelData.isCurrent
+                            onClicked: ListView.view.owner.confirmRemove(modelData.username)
+                        }
                     }
-                    FluTextButton {
-                        text: I18n.t("重置密码")
-                        onClicked: ListView.view.owner.openReset(modelData.username)
-                    }
-                    FluTextButton {
-                        text: I18n.t("删除")
-                        enabled: !modelData.admin && !modelData.isCurrent
-                        onClicked: ListView.view.owner.confirmRemove(modelData.username)
-                    }
+                }
+            }
+        }
+    }
+
+    FluPopup {
+        id: limitDialog
+        width: 360
+        implicitHeight: limitColumn.implicitHeight + 48
+        property string targetUser: ""
+        property int limitValue: 12
+
+        contentItem: ColumnLayout {
+            id: limitColumn
+            spacing: 10
+
+            FluText {
+                text: I18n.t("设置借阅上限")
+                font: FluTextStyle.Title
+            }
+            FluText {
+                Layout.fillWidth: true
+                text: I18n.f("账号“{0}”最多可同时借阅多少本图书？", [limitDialog.targetUser])
+                font: FluTextStyle.Caption
+                textColor: FluTheme.fontSecondaryColor
+                wrapMode: Text.Wrap
+            }
+            FluSpinBox {
+                id: limitSpin
+                Layout.fillWidth: true
+                from: 1
+                to: 100
+                value: limitDialog.limitValue
+                onValueChanged: limitDialog.limitValue = value
+            }
+            RowLayout {
+                Layout.fillWidth: true
+                Item {
+                    Layout.fillWidth: true
+                }
+                FluTextButton {
+                    text: I18n.t("取消")
+                    onClicked: limitDialog.close()
+                }
+                FluFilledButton {
+                    text: I18n.t("保存")
+                    onClicked: tab.saveLimit()
                 }
             }
         }
@@ -309,6 +378,24 @@ ColumnLayout {
         resetDialog.targetUser = username
         resetDialog.newPassword = ""
         resetDialog.open()
+    }
+
+    function openLimit(username, limit) {
+        limitDialog.targetUser = username
+        limitDialog.limitValue = limit
+        limitSpin.value = limit
+        limitDialog.open()
+    }
+
+    function saveLimit() {
+        var error = LibraryService.setUserBorrowLimit(limitDialog.targetUser,
+                                                      limitDialog.limitValue)
+        if (error === "") {
+            toast(I18n.t("借阅上限已更新"), true)
+            limitDialog.close()
+        } else {
+            toast(error, false)
+        }
     }
 
     function confirmRemove(username) {

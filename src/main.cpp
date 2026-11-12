@@ -1,4 +1,4 @@
-﻿#include <QDateTime>
+#include <QDateTime>
 #include <QDebug>
 #include <QDir>
 #include <QFile>
@@ -87,6 +87,7 @@ int main(int argc, char *argv[]) {
     // 开发构建：<build>/bin + <build>/qml/FluentUI；发布目录：<app>/qml/FluentUI。
     engine.addImportPath(app.applicationDirPath() + QStringLiteral("/qml"));
     engine.addImportPath(app.applicationDirPath() + QStringLiteral("/../qml"));
+    engine.addImportPath(app.applicationDirPath() + QStringLiteral("/../Resources/qml"));
     engine.addImportPath(QStringLiteral("qrc:/qml"));
     engine.addImageProvider(QStringLiteral("library"), new LibraryImageProvider(&libraryService));
 

@@ -12,6 +12,7 @@
 #include <QHash>
 #include <QImage>
 #include <QMessageAuthenticationCode>
+#include <QProcess>
 #include <QRandomGenerator>
 #include <QSqlError>
 #include <QSqlQuery>
@@ -27,7 +28,7 @@ namespace {
 
 constexpr int kDefaultBorrowLimit = 12;
 constexpr int kFirstBookNumber = 1000;
-constexpr int kSchemaVersion = 2;
+constexpr int kSchemaVersion = 3;
 constexpr int kPasswordIterations = 100000;
 constexpr int kPasswordHashLength = 32;
 constexpr int kPasswordSaltLength = 16;
@@ -246,6 +247,17 @@ bool LibraryService::createSchema() {
         }
         return true;
     }
+    if (version == 2 && hasUsersTable) {
+        QSqlQuery alter(m_db);
+        if (!alter.exec(QStringLiteral(
+                "ALTER TABLE users ADD COLUMN borrow_limit_enc BLOB"))) {
+            setStorageError(QStringLiteral("升级数据库结构失败：%1").arg(alter.lastError().text()));
+            return false;
+        }
+        QSqlQuery versionQuery(m_db);
+        versionQuery.exec(QStringLiteral("PRAGMA user_version = %1").arg(kSchemaVersion));
+        return true;
+    }
 
     const QStringList statements = {
         QStringLiteral("CREATE TABLE IF NOT EXISTS users ("
@@ -259,6 +271,7 @@ bool LibraryService::createSchema() {
                        "locked_enc BLOB NOT NULL,"
                        "failed_attempts_enc BLOB NOT NULL,"
                        "lock_until_enc BLOB NOT NULL,"
+                       "borrow_limit_enc BLOB,"
                        "avatar_enc BLOB NOT NULL)"),
         QStringLiteral("CREATE TABLE IF NOT EXISTS books ("
                        "number INTEGER PRIMARY KEY NOT NULL,"
@@ -440,7 +453,7 @@ bool LibraryService::loadFromDatabase() {
     if (!usersQuery.exec(QStringLiteral(
             "SELECT id, username_enc, display_name_enc, password_hash_enc, password_salt_enc, "
             "admin_enc, must_change_enc, locked_enc, failed_attempts_enc, lock_until_enc, "
-            "avatar_enc FROM users ORDER BY rowid"))) {
+            "borrow_limit_enc, avatar_enc FROM users ORDER BY rowid"))) {
         setStorageError(QStringLiteral("读取账户数据失败：%1").arg(usersQuery.lastError().text()));
         return false;
     }
@@ -494,10 +507,20 @@ bool LibraryService::loadFromDatabase() {
         if (!ok) {
             return false;
         }
-        user.avatar = decryptBlob(usersQuery.value(10).toByteArray(),
+        user.avatar = decryptBlob(usersQuery.value(11).toByteArray(),
                                   userAad(uuid, "avatar"), &ok);
         if (!ok) {
             return false;
+        }
+        const QByteArray limitBlob = usersQuery.value(10).toByteArray();
+        if (limitBlob.isEmpty()) {
+            user.borrowLimit = 12;
+        } else {
+            const int limit = decryptText(limitBlob, userAad(uuid, "borrowLimit"), &ok).toInt();
+            if (!ok) {
+                return false;
+            }
+            user.borrowLimit = qBound(1, limit, 100);
         }
         if (user.displayName.isEmpty()) {
             user.displayName = user.username;
@@ -510,7 +533,8 @@ bool LibraryService::loadFromDatabase() {
     QSqlQuery booksQuery(m_db);
     if (!booksQuery.exec(QStringLiteral(
             "SELECT number, name_enc, author_enc, publisher_enc, place_enc, "
-            "category_enc, description_enc, cover_enc FROM books ORDER BY number"))) {
+            "category_enc, CASE WHEN length(description_enc)>29 THEN 1 ELSE 0 END, "
+            "CASE WHEN length(cover_enc)>29 THEN 1 ELSE 0 END FROM books ORDER BY number"))) {
         setStorageError(QStringLiteral("读取图书数据失败：%1").arg(booksQuery.lastError().text()));
         return false;
     }
@@ -543,16 +567,11 @@ bool LibraryService::loadFromDatabase() {
         if (!ok) {
             return false;
         }
-        book.description = decryptText(booksQuery.value(6).toByteArray(),
-                                       bookAad(book.number, "description"), &ok);
-        if (!ok) {
-            return false;
-        }
-        book.cover = decryptBlob(booksQuery.value(7).toByteArray(),
-                                 bookAad(book.number, "cover"), &ok);
-        if (!ok) {
-            return false;
-        }
+        book.description.clear();
+        book.cover.clear();
+        book.descriptionLoaded = false;
+        book.coverLoaded = false;
+        book.hasCover = booksQuery.value(7).toInt() != 0;
         book.category = book.category.isEmpty() ? QStringLiteral("未分类") : book.category;
         if (book.number <= 0 || book.name.isEmpty() || indexOfBook(book.number) >= 0) {
             continue;
@@ -633,7 +652,6 @@ bool LibraryService::persistAll() {
 
     QSqlQuery clear(m_db);
     if (!clear.exec(QStringLiteral("DELETE FROM loans"))
-        || !clear.exec(QStringLiteral("DELETE FROM books"))
         || !clear.exec(QStringLiteral("DELETE FROM users"))) {
         setLastError(QStringLiteral("清理旧数据失败：%1").arg(clear.lastError().text()));
         rollback();
@@ -700,6 +718,12 @@ bool LibraryService::persistAll() {
             rollback();
             return false;
         }
+        const QByteArray borrowLimit = encryptText(QString::number(user.borrowLimit),
+                                                   userAad(uuid, "borrowLimit"), &ok);
+        if (!ok) {
+            rollback();
+            return false;
+        }
         const QByteArray avatar = encryptBlob(user.avatar, userAad(uuid, "avatar"), &ok);
         if (!ok) {
             rollback();
@@ -710,8 +734,8 @@ bool LibraryService::persistAll() {
         insert.prepare(QStringLiteral(
                 "INSERT INTO users(id, username_enc, display_name_enc, password_hash_enc, "
                 "password_salt_enc, admin_enc, must_change_enc, locked_enc, "
-                "failed_attempts_enc, lock_until_enc, avatar_enc) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"));
+                "failed_attempts_enc, lock_until_enc, borrow_limit_enc, avatar_enc) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"));
         insert.addBindValue(uuid);
         insert.addBindValue(username);
         insert.addBindValue(displayName);
@@ -722,6 +746,7 @@ bool LibraryService::persistAll() {
         insert.addBindValue(locked);
         insert.addBindValue(failed);
         insert.addBindValue(lockUntil);
+        insert.addBindValue(borrowLimit);
         insert.addBindValue(avatar);
         if (!insert.exec()) {
             setLastError(QStringLiteral("保存账户失败：%1").arg(insert.lastError().text()));
@@ -759,30 +784,58 @@ bool LibraryService::persistAll() {
             rollback();
             return false;
         }
-        const QByteArray description = encryptText(book.description,
-                                                   bookAad(book.number, "description"), &ok);
-        if (!ok) {
-            rollback();
-            return false;
-        }
-        const QByteArray cover = encryptBlob(book.cover, bookAad(book.number, "cover"), &ok);
-        if (!ok) {
-            rollback();
-            return false;
+        const bool fullBook = book.descriptionLoaded && book.coverLoaded;
+        QByteArray description;
+        QByteArray cover;
+        if (fullBook) {
+            description = book.description.isEmpty()
+                                  ? QByteArray()
+                                  : encryptText(book.description,
+                                                bookAad(book.number, "description"), &ok);
+            if (!ok) {
+                rollback();
+                return false;
+            }
+            cover = book.cover.isEmpty()
+                            ? QByteArray()
+                            : encryptBlob(book.cover, bookAad(book.number, "cover"), &ok);
+            if (!ok) {
+                rollback();
+                return false;
+            }
         }
 
         QSqlQuery insert(m_db);
-        insert.prepare(QStringLiteral(
-                "INSERT INTO books(number, name_enc, author_enc, publisher_enc, place_enc, "
-                "category_enc, description_enc, cover_enc) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"));
-        insert.addBindValue(book.number);
-        insert.addBindValue(name);
-        insert.addBindValue(author);
-        insert.addBindValue(publisher);
-        insert.addBindValue(place);
-        insert.addBindValue(category);
-        insert.addBindValue(description);
-        insert.addBindValue(cover);
+        if (fullBook) {
+            insert.prepare(QStringLiteral(
+                    "INSERT INTO books(number, name_enc, author_enc, publisher_enc, place_enc, "
+                    "category_enc, description_enc, cover_enc) VALUES (?, ?, ?, ?, ?, ?, ?, ?) "
+                    "ON CONFLICT(number) DO UPDATE SET name_enc=excluded.name_enc, "
+                    "author_enc=excluded.author_enc, publisher_enc=excluded.publisher_enc, "
+                    "place_enc=excluded.place_enc, category_enc=excluded.category_enc, "
+                    "description_enc=excluded.description_enc, cover_enc=excluded.cover_enc"));
+        } else {
+            insert.prepare(QStringLiteral(
+                    "UPDATE books SET name_enc=?, author_enc=?, publisher_enc=?, place_enc=?, "
+                    "category_enc=? WHERE number=?"));
+        }
+        if (fullBook) {
+            insert.addBindValue(book.number);
+            insert.addBindValue(name);
+            insert.addBindValue(author);
+            insert.addBindValue(publisher);
+            insert.addBindValue(place);
+            insert.addBindValue(category);
+            insert.addBindValue(description);
+            insert.addBindValue(cover);
+        } else {
+            insert.addBindValue(name);
+            insert.addBindValue(author);
+            insert.addBindValue(publisher);
+            insert.addBindValue(place);
+            insert.addBindValue(category);
+            insert.addBindValue(book.number);
+        }
         if (!insert.exec()) {
             setLastError(QStringLiteral("保存图书失败：%1").arg(insert.lastError().text()));
             rollback();
@@ -1111,6 +1164,14 @@ QString LibraryService::currentDisplayName() const {
     return displayNameFor(m_currentUser);
 }
 
+int LibraryService::myBorrowLimit() const {
+    if (m_currentUser.isEmpty()) {
+        return m_limit;
+    }
+    const int index = indexOfUser(m_currentUser);
+    return index >= 0 ? m_users.at(index).borrowLimit : m_limit;
+}
+
 bool LibraryService::currentHasAvatar() const {
     if (m_currentUser.isEmpty()) {
         return false;
@@ -1215,6 +1276,7 @@ QVariantMap LibraryService::stats() const {
         }
     }
     const int mine = myBorrowCount();
+    const int limit = myBorrowLimit();
 
     QVariantMap map;
     map.insert(QStringLiteral("totalBooks"), m_books.size());
@@ -1226,8 +1288,9 @@ QVariantMap LibraryService::stats() const {
     map.insert(QStringLiteral("blacklistedUsers"), blacklistedUsers);
     map.insert(QStringLiteral("totalLoans"), m_loans.size());
     map.insert(QStringLiteral("myBorrowCount"), mine);
-    map.insert(QStringLiteral("myRemaining"), std::max(0, m_limit - mine));
+    map.insert(QStringLiteral("myRemaining"), std::max(0, limit - mine));
     map.insert(QStringLiteral("borrowLimit"), m_limit);
+    map.insert(QStringLiteral("myBorrowLimit"), limit);
     map.insert(QStringLiteral("blacklisted"), blacklisted());
     return map;
 }
@@ -1329,8 +1392,9 @@ QString LibraryService::borrowBook(int number) {
         }
         return fail(QStringLiteral("《%1》已被借出，请选择其他图书").arg(book.name));
     }
-    if (activeLoanCountForUser(m_currentUser) >= m_limit) {
-        return fail(QStringLiteral("已达到借阅上限（%1 本），请先归还部分图书").arg(m_limit));
+    if (activeLoanCountForUser(m_currentUser) >= myBorrowLimit()) {
+        return fail(QStringLiteral("已达到借阅上限（%1 本），请先归还部分图书")
+                            .arg(myBorrowLimit()));
     }
     if (isUserBlacklisted(m_currentUser)) {
         return fail(QStringLiteral("你有逾期未还图书，已被列入黑名单，请先归还后再借阅"));
@@ -1523,7 +1587,8 @@ QString LibraryService::addBook(const QString &name,
                                 const QString &place,
                                 const QString &description,
                                 const QString &category,
-                                const QString &coverPath) {
+                                const QString &coverPath,
+                                int copies) {
     if (!m_storageReady) {
         return fail(QStringLiteral("数据库不可用，无法添加图书：%1").arg(m_storageError));
     }
@@ -1536,6 +1601,9 @@ QString LibraryService::addBook(const QString &name,
     }
     if (bookName.size() > 100) {
         return fail(QStringLiteral("图书名称不能超过 100 个字符"));
+    }
+    if (copies < 1 || copies > 100) {
+        return fail(QStringLiteral("复本数量必须在 1 到 100 之间"));
     }
 
     QByteArray cover;
@@ -1553,21 +1621,28 @@ QString LibraryService::addBook(const QString &name,
         }
     }
 
-    Book book;
-    book.number = nextBookNumber();
-    book.name = bookName;
-    book.author = author.trimmed().isEmpty() ? QStringLiteral("佚名") : author.trimmed();
-    book.publisher = publisher.trimmed().isEmpty() ? QStringLiteral("未知") : publisher.trimmed();
-    book.place = place.trimmed().isEmpty() ? QStringLiteral("未分类") : place.trimmed();
-    book.category = category.trimmed().isEmpty() ? QStringLiteral("未分类") : category.trimmed();
-    book.description = description.trimmed();
-    book.cover = cover;
+    Book prototype;
+    prototype.name = bookName;
+    prototype.author = author.trimmed().isEmpty() ? QStringLiteral("佚名") : author.trimmed();
+    prototype.publisher = publisher.trimmed().isEmpty() ? QStringLiteral("未知")
+                                                       : publisher.trimmed();
+    prototype.place = place.trimmed().isEmpty() ? QStringLiteral("未分类") : place.trimmed();
+    prototype.category = category.trimmed().isEmpty() ? QStringLiteral("未分类")
+                                                      : category.trimmed();
+    prototype.description = description.trimmed();
+    prototype.cover = cover;
 
     const int previousLastNumber = m_lastBookNumber;
-    m_books.append(book);
-    m_lastBookNumber = book.number;
+    for (int i = 0; i < copies; ++i) {
+        Book book = prototype;
+        book.number = nextBookNumber();
+        m_books.append(book);
+        m_lastBookNumber = book.number;
+    }
     if (!persistAll()) {
-        m_books.removeLast();
+        for (int i = 0; i < copies; ++i) {
+            m_books.removeLast();
+        }
         m_lastBookNumber = previousLastNumber;
         return lastError();
     }
@@ -1606,7 +1681,8 @@ QString LibraryService::addUser(const QString &username, const QString &password
     user.passwordSalt = makeSalt();
     user.passwordHash = hashPassword(password, user.passwordSalt);
     user.admin = false;
-    user.mustChangePassword = true;
+    user.mustChangePassword = false;
+    user.borrowLimit = 12;
     m_users.append(user);
     if (!persistAll()) {
         m_users.removeLast();
@@ -1804,6 +1880,33 @@ QString LibraryService::setUserLocked(const QString &username, bool locked) {
     return {};
 }
 
+QString LibraryService::setUserBorrowLimit(const QString &username, int limit) {
+    if (!m_storageReady) {
+        return fail(QStringLiteral("数据库不可用，无法修改借阅上限：%1").arg(m_storageError));
+    }
+    if (!isAdmin()) {
+        return fail(QStringLiteral("只有管理员可以修改借阅上限"));
+    }
+    const int index = indexOfUser(username);
+    if (index < 0) {
+        return fail(QStringLiteral("账号“%1”不存在").arg(username));
+    }
+    if (limit < 1 || limit > 100) {
+        return fail(QStringLiteral("借阅上限必须在 1 到 100 本之间"));
+    }
+    User &user = m_users[index];
+    const int previous = user.borrowLimit;
+    user.borrowLimit = limit;
+    if (!persistAll()) {
+        user.borrowLimit = previous;
+        return lastError();
+    }
+    setLastError(QString());
+    emit usersChanged();
+    emit booksChanged();
+    return {};
+}
+
 QString LibraryService::removeUser(const QString &username) {
     if (!m_storageReady) {
         return fail(QStringLiteral("数据库不可用，无法删除账户：%1").arg(m_storageError));
@@ -1975,12 +2078,24 @@ QVariantList LibraryService::searchBooks(const QString &keyword, int mode) const
     return out;
 }
 
-QVariantMap LibraryService::findBook(int number) const {
+QVariantMap LibraryService::findBook(int number) {
     const int index = indexOfBook(number);
     if (index < 0) {
         return {};
     }
-    return toMap(m_books.at(index));
+    Book book = m_books.at(index);
+    if (!book.descriptionLoaded) {
+        QSqlQuery query(m_db);
+        query.prepare(QStringLiteral("SELECT description_enc FROM books WHERE number = ?"));
+        query.addBindValue(number);
+        if (query.exec() && query.next()) {
+            bool ok = false;
+            book.description = decryptText(query.value(0).toByteArray(),
+                                           bookAad(number, "description"), &ok);
+            book.descriptionLoaded = ok;
+        }
+    }
+    return toMap(book);
 }
 
 bool LibraryService::openExternalUrl(const QString &url) {
@@ -1988,15 +2103,40 @@ bool LibraryService::openExternalUrl(const QString &url) {
     if (!target.isValid() || target.scheme().isEmpty()) {
         return false;
     }
-    return QDesktopServices::openUrl(target);
+    if (QDesktopServices::openUrl(target)) {
+        return true;
+    }
+#if defined(Q_OS_WIN)
+    return QProcess::startDetached(QStringLiteral("rundll32"),
+                                   {QStringLiteral("url.dll,FileProtocolHandler"), url});
+#elif defined(Q_OS_MACOS)
+    return QProcess::startDetached(QStringLiteral("/usr/bin/open"), {url});
+#else
+    return QProcess::startDetached(QStringLiteral("xdg-open"), {url});
+#endif
 }
 
-QImage LibraryService::coverImage(int number) const {
+QImage LibraryService::coverImage(int number) {
     const int index = indexOfBook(number);
-    if (index < 0 || m_books.at(index).cover.isEmpty()) {
+    if (index < 0) {
         return {};
     }
-    return QImage::fromData(m_books.at(index).cover);
+    QByteArray encryptedCover = m_books.at(index).cover;
+    if (encryptedCover.isEmpty() && !m_books.at(index).coverLoaded) {
+        QSqlQuery query(m_db);
+        query.prepare(QStringLiteral("SELECT cover_enc FROM books WHERE number = ?"));
+        query.addBindValue(number);
+        if (!query.exec() || !query.next()) {
+            return {};
+        }
+        encryptedCover = query.value(0).toByteArray();
+    }
+    if (encryptedCover.isEmpty()) {
+        return {};
+    }
+    bool ok = false;
+    const QByteArray cover = decryptBlob(encryptedCover, bookAad(number, "cover"), &ok);
+    return ok ? QImage::fromData(cover) : QImage();
 }
 
 QImage LibraryService::avatarImage(const QString &username) const {
@@ -2184,7 +2324,7 @@ QVariantMap LibraryService::toMap(const Book &book) const {
     map.insert(QStringLiteral("place"), book.place);
     map.insert(QStringLiteral("category"), book.category);
     map.insert(QStringLiteral("description"), book.description);
-    map.insert(QStringLiteral("hasCover"), !book.cover.isEmpty());
+    map.insert(QStringLiteral("hasCover"), book.hasCover || !book.cover.isEmpty());
     map.insert(QStringLiteral("available"), available);
     map.insert(QStringLiteral("availableText"), available ? QStringLiteral("在馆")
                                                           : QStringLiteral("借出"));
@@ -2223,6 +2363,7 @@ QVariantMap LibraryService::userMap(const User &user) const {
     map.insert(QStringLiteral("roleKey"), user.admin ? QStringLiteral("admin")
                                                      : QStringLiteral("reader"));
     map.insert(QStringLiteral("borrowCount"), count);
+    map.insert(QStringLiteral("borrowLimit"), user.borrowLimit);
     map.insert(QStringLiteral("blacklisted"), isUserBlacklisted(user.username));
     map.insert(QStringLiteral("locked"), user.locked);
     map.insert(QStringLiteral("temporaryLocked"), temporaryLocked);

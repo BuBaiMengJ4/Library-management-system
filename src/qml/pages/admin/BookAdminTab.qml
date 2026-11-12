@@ -96,9 +96,26 @@ ColumnLayout {
 
                 FluTextBox {
                     id: categoryField
-                    Layout.preferredWidth: 230
+                    Layout.preferredWidth: 200
                     placeholderText: I18n.t("分类（可选）")
                     onCommit: tab.addBook()
+                }
+
+                ColumnLayout {
+                    Layout.preferredWidth: 104
+                    spacing: 1
+                    FluText {
+                        text: I18n.t("复本数量")
+                        font: FluTextStyle.Caption
+                        textColor: FluTheme.fontSecondaryColor
+                    }
+                    FluSpinBox {
+                        id: copiesField
+                        Layout.fillWidth: true
+                        from: 1
+                        to: 100
+                        value: 1
+                    }
                 }
 
                 Rectangle {
@@ -218,7 +235,7 @@ ColumnLayout {
         var error = LibraryService.addBook(nameField.text, authorField.text,
                                            publisherField.text, placeField.text,
                                            descriptionField.text, categoryField.text,
-                                           coverPath)
+                                           coverPath, copiesField.value)
         if (error === "") {
             toast(I18n.f("添加成功，索书号 {0}", [LibraryService.lastBookNumber]), true)
             clearForm()
@@ -237,6 +254,7 @@ ColumnLayout {
         categoryField.text = ""
         coverPath = ""
         coverPreviewSource = ""
+        copiesField.value = 1
     }
 
     function toast(message, success) {

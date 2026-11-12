@@ -7,12 +7,14 @@
         <file>qml/components/StatCard.qml</file>
         <file>qml/components/EmptyState.qml</file>
         <file>qml/components/BookCard.qml</file>
+        <file>qml/components/BookGridCard.qml</file>
         <file>qml/components/TitleBar.qml</file>
         <file>qml/dialogs/LoginDialog.qml</file>
         <file>qml/dialogs/ChangePasswordDialog.qml</file>
         <file>qml/dialogs/ProfileDialog.qml</file>
         <file>qml/dialogs/LanguageDialog.qml</file>
         <file>qml/dialogs/BookAdminDialog.qml</file>
+        <file>qml/dialogs/BookDetailDialog.qml</file>
         <file>qml/pages/HomePage.qml</file>
         <file>qml/pages/SearchPage.qml</file>
         <file>qml/pages/BorrowPage.qml</file>

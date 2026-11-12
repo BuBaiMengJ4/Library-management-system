@@ -1,10 +1,11 @@
-import QtQuick
+﻿import QtQuick
 import QtQuick.Layouts
 import QtQuick.Window
 import QtQuick.Controls
 import FluentUI 1.0
 import Library 1.0
 import "../components"
+import "../dialogs"
 
 FluContentPage {
     id: page
@@ -98,14 +99,14 @@ FluContentPage {
                             Layout.fillWidth: true
                         }
                         FluText {
-                            text: LibraryService.myBorrowCount + " / " + LibraryService.borrowLimit
+                            text: LibraryService.myBorrowCount + " / " + LibraryService.myBorrowLimit
                             font: FluTextStyle.BodyStrong
                         }
                     }
                     FluProgressBar {
                         Layout.fillWidth: true
                         from: 0
-                        to: LibraryService.borrowLimit
+                        to: LibraryService.myBorrowLimit
                         value: LibraryService.myBorrowCount
                         indeterminate: false
                         strokeWidth: 8
@@ -229,6 +230,7 @@ FluContentPage {
                     showRenew: true
                     onReturnRequested: page.doReturn(book)
                     onRenewRequested: page.doRenew(book)
+                    onDetailRequested: bookDetail.openFor(book.number)
                 }
             }
 
@@ -242,6 +244,10 @@ FluContentPage {
                 description: I18n.t("借阅的图书会显示在这里，并记录借阅时间、应还日期和续借状态。")
             }
         }
+    }
+
+    BookDetailDialog {
+        id: bookDetail
     }
 
     function openLogin() {

@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>com.bubaimengj4.LibraryManagementSystem</id>
+  <name>Library Management System</name>
+  <summary>FluentUI Qt library management system</summary>
+  <metadata_license>MIT</metadata_license>
+  <project_license>MIT</project_license>
+  <description>
+    <p>A FluentUI Qt application for browsing, borrowing, renewing and returning books,
+       with encrypted SQLite storage and administrator tools.</p>
+  </description>
+  <launchable type="desktop-id">com.bubaimengj4.LibraryManagementSystem.desktop</launchable>
+  <url type="homepage">https://github.com/BuBaiMengJ4/Library-management-system</url>
+  <developer_name>BuBaiMengJ4</developer_name>
+  <content_rating type="oars-1.1"/>
+</component>

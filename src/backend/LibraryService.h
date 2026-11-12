@@ -33,6 +33,7 @@ class LibraryService : public QObject {
     Q_PROPERTY(QVariantList myBorrowedBooks READ myBorrowedBooks NOTIFY booksChanged)
     Q_PROPERTY(QVariantList users READ users NOTIFY usersChanged)
     Q_PROPERTY(int borrowLimit READ borrowLimit CONSTANT)
+    Q_PROPERTY(int myBorrowLimit READ myBorrowLimit NOTIFY booksChanged)
     Q_PROPERTY(int myBorrowCount READ myBorrowCount NOTIFY booksChanged)
     Q_PROPERTY(QVariantMap stats READ stats NOTIFY booksChanged)
     Q_PROPERTY(QString lastError READ lastError NOTIFY lastErrorChanged)
@@ -61,6 +62,7 @@ public:
     QVariantList myBorrowedBooks() const;
     QVariantList users() const;
     int borrowLimit() const { return m_limit; }
+    int myBorrowLimit() const;
     int myBorrowCount() const;
     QVariantMap stats() const;
     QString lastError() const { return m_lastError; }
@@ -87,7 +89,8 @@ public:
                                 const QString &place,
                                 const QString &description,
                                 const QString &category,
-                                const QString &coverPath);
+                                const QString &coverPath,
+                                int copies = 1);
     Q_INVOKABLE QString addUser(const QString &username, const QString &password);
     Q_INVOKABLE QString resetPassword(const QString &username, const QString &newPassword);
     Q_INVOKABLE QString changeOwnPassword(const QString &newPassword);
@@ -96,14 +99,15 @@ public:
                                       const QString &avatarPath,
                                       bool clearAvatar);
     Q_INVOKABLE QString setUserLocked(const QString &username, bool locked);
+    Q_INVOKABLE QString setUserBorrowLimit(const QString &username, int limit);
     Q_INVOKABLE QString removeUser(const QString &username);
     Q_INVOKABLE int seedSampleBooks();
 
     Q_INVOKABLE QVariantList searchBooks(const QString &keyword, int mode = 0) const;
-    Q_INVOKABLE QVariantMap findBook(int number) const;
+    Q_INVOKABLE QVariantMap findBook(int number);
 
     Q_INVOKABLE bool openExternalUrl(const QString &url);
-    QImage coverImage(int number) const;
+    QImage coverImage(int number);
     QImage avatarImage(const QString &username) const;
 
 signals:
@@ -125,6 +129,9 @@ private:
         QString category;
         QString description;
         QByteArray cover;
+        bool descriptionLoaded = true;
+        bool coverLoaded = true;
+        bool hasCover = false;
 
         QString borrower;
         QDateTime borrowedAt;
@@ -142,6 +149,7 @@ private:
         bool mustChangePassword = false;
         bool locked = false;
         int failedAttempts = 0;
+        int borrowLimit = 12;
         QDateTime lockUntil;
         QByteArray avatar;
     };

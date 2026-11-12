@@ -27,6 +27,7 @@ FluWindow {
         onLoginRequested: window.openLogin()
         onProfileRequested: window.openProfile()
         onLanguageRequested: languageDialog.open()
+        onLogoutRequested: logoutDialog.open()
     }
 
     Settings {

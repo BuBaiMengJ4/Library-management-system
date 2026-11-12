@@ -1,4 +1,4 @@
-import QtQuick
+﻿import QtQuick
 import QtQuick.Layouts
 import QtQuick.Window
 import QtQuick.Controls
@@ -188,7 +188,7 @@ FluContentPage {
                        ? "—"
                        : (LibraryService.isAdmin
                           ? "—"
-                          : (LibraryService.myBorrowCount || 0) + " / " + LibraryService.borrowLimit)
+                          : (LibraryService.myBorrowCount || 0) + " / " + LibraryService.myBorrowLimit)
                 hint: !LibraryService.isLoggedIn
                       ? I18n.t("登录后查看")
                       : (LibraryService.isAdmin
@@ -363,7 +363,7 @@ FluContentPage {
                         Repeater {
                             model: [
                                 I18n.f("每位读者最多可同时借阅 {0} 本图书",
-                                       [LibraryService.borrowLimit]),
+                                       [LibraryService.myBorrowLimit]),
                                 I18n.t("借阅期限为 1 个月，每本图书只能续借一次"),
                                 I18n.t("逾期未还会被列入黑名单，无法继续借阅"),
                                 I18n.t("管理员不能借书或还书，只能在管理中心帮助用户归还"),
